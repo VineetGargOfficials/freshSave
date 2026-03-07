@@ -17,26 +17,32 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS Configuration - UPDATED TO ALLOW MULTIPLE ORIGINS
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:8080',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:8080',
-  process.env.FRONTEND_URL
-].filter(Boolean); // Remove undefined values
-
+// CORS Configuration - Allow all origins in development
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    // In production, check allowed origins
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:8080',
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:8080',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    callback(null, true); // Allow anyway in development
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -47,7 +53,7 @@ app.use(cors({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
 });
 app.use('/api/', limiter);
 
@@ -68,6 +74,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working!' });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/food', foodRoutes);
@@ -75,9 +86,21 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/ocr', ocrRoutes);
 
-// 404 handler
+// Optional: Test routes (only if file exists)
+try {
+  const testRoutes = require('./routes/testRoutes');
+  app.use('/api/test', testRoutes);
+  console.log('✅ Test routes loaded');
+} catch (e) {
+  console.log('⚠️ Test routes not available (optional)');
+}
+
+// 404 handler - must be after all routes
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  res.status(404).json({ 
+    success: false, 
+    message: `Route not found: ${req.method} ${req.url}` 
+  });
 });
 
 // Error handler (must be last)

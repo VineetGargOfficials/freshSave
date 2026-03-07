@@ -1,57 +1,119 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  const config = {
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false, // true for 465, false for other ports
+    port: parseInt(process.env.EMAIL_PORT),
+    secure: false,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
-  });
+  };
+
+  return nodemailer.createTransport(config);
 };
 
-// Send verification email
 exports.sendVerificationEmail = async (email, token) => {
   try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.warn('⚠️ Email not configured');
+      return { success: false, message: 'Email service not configured' };
+    }
+
     const transporter = createTransporter();
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
+    
+    // IMPORTANT: Use the correct frontend URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+    const verificationUrl = `${frontendUrl}/verify-email/${token}`;
+
+    console.log('📧 Verification URL:', verificationUrl); // Debug log
 
     const mailOptions = {
-      from: `"FreshSave" <${process.env.EMAIL_USER}>`,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
-      subject: 'Verify Your Email - FreshSave',
+      subject: '✅ Verify Your Email - FreshSave',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+              line-height: 1.6; 
+              color: #333; 
+              background-color: #f4f4f4;
+              margin: 0;
+              padding: 0;
+            }
+            .container { 
+              max-width: 600px; 
+              margin: 20px auto; 
+              background: white;
+              border-radius: 10px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .header { 
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+              color: white; 
+              padding: 40px 20px; 
+              text-align: center; 
+            }
+            .header h1 { margin: 0; font-size: 28px; }
+            .content { 
+              padding: 40px 30px; 
+              background: white;
+            }
+            .button { 
+              display: inline-block; 
+              padding: 15px 40px; 
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white !important; 
+              text-decoration: none; 
+              border-radius: 8px; 
+              font-weight: bold;
+              margin: 20px 0;
+            }
+            .footer { 
+              text-align: center; 
+              padding: 20px; 
+              color: #666; 
+              font-size: 12px;
+              background: #f9f9f9;
+            }
+            .link-box {
+              background: #f5f5f5;
+              padding: 12px;
+              border-radius: 5px;
+              word-break: break-all;
+              font-size: 11px;
+              color: #666;
+              margin-top: 20px;
+            }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
-              <h1>🌱 Welcome to FreshSave!</h1>
+              <div style="font-size: 48px; margin-bottom: 10px;">🌱</div>
+              <h1>Welcome to FreshSave!</h1>
             </div>
             <div class="content">
-              <h2>Verify Your Email Address</h2>
-              <p>Thank you for joining FreshSave - your partner in reducing food waste!</p>
-              <p>Click the button below to verify your email address and activate your account:</p>
+              <h2 style="color: #667eea;">Verify Your Email</h2>
+              <p>Thank you for joining FreshSave! Click the button below to verify your email address:</p>
               <center>
-                <a href="${verificationUrl}" class="button">Verify Email</a>
+                <a href="${verificationUrl}" class="button">Verify Email Address</a>
               </center>
-              <p>Or copy and paste this link in your browser:</p>
-              <p style="word-break: break-all; color: #667eea;">${verificationUrl}</p>
-              <p>This link will expire in 24 hours.</p>
-              <p>If you didn't create an account, please ignore this email.</p>
+              <p style="margin-top: 30px; font-size: 13px; color: #666;">
+                Or copy and paste this link in your browser:
+              </p>
+              <div class="link-box">
+                ${verificationUrl}
+              </div>
+              <p style="margin-top: 20px; font-size: 12px; color: #999;">
+                This verification link will expire in 24 hours.
+              </p>
             </div>
             <div class="footer">
               <p>&copy; 2025 FreshSave. All rights reserved.</p>
@@ -62,195 +124,112 @@ exports.sendVerificationEmail = async (email, token) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Verification email sent to ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Verification email sent to ${email}:`, info.messageId);
+    return { success: true, messageId: info.messageId };
+
   } catch (error) {
     console.error('❌ Email sending failed:', error);
-    throw new Error('Failed to send verification email');
+    return { success: false, error: error.message };
   }
 };
+
 
 // Send password reset email
 exports.sendPasswordResetEmail = async (email, token) => {
   try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.warn('⚠️ Email not configured');
+      return { success: false };
+    }
+
     const transporter = createTransporter();
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${token}`;
 
     const mailOptions = {
-      from: `"FreshSave" <${process.env.EMAIL_USER}>`,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
-      subject: 'Password Reset Request - FreshSave',
+      subject: '🔒 Password Reset Request - FreshSave',
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #f5576c; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }
-            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🔒 Password Reset</h1>
-            </div>
-            <div class="content">
-              <h2>Reset Your Password</h2>
-              <p>We received a request to reset your password for your FreshSave account.</p>
-              <p>Click the button below to reset your password:</p>
-              <center>
-                <a href="${resetUrl}" class="button">Reset Password</a>
-              </center>
-              <p>Or copy and paste this link in your browser:</p>
-              <p style="word-break: break-all; color: #f5576c;">${resetUrl}</p>
-              <div class="warning">
-                <strong>⚠️ Security Notice:</strong>
-                <p>This link will expire in 10 minutes. If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
-              </div>
-            </div>
-            <div class="footer">
-              <p>&copy; 2025 FreshSave. All rights reserved.</p>
-            </div>
+        <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="font-size: 48px; margin: 0;">🔒</h1>
+            <h2>Password Reset</h2>
           </div>
-        </body>
-        </html>
+          <div style="padding: 40px 30px; background: white;">
+            <p>We received a request to reset your password.</p>
+            <center>
+              <a href="${resetUrl}" style="display: inline-block; padding: 15px 40px; background: #f5576c; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0;">Reset Password</a>
+            </center>
+            <p style="color: #999; margin-top: 20px; font-size: 12px;">This link expires in 10 minutes.</p>
+          </div>
+        </div>
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     console.log(`✅ Password reset email sent to ${email}`);
+    return { success: true, messageId: info.messageId };
+
   } catch (error) {
     console.error('❌ Email sending failed:', error);
-    throw new Error('Failed to send password reset email');
+    return { success: false, error: error.message };
   }
 };
 
-// Send expiry notification
-exports.sendExpiryNotification = async (email, foodItems) => {
+// Send welcome email
+exports.sendWelcomeEmail = async (email, name, role) => {
   try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      return { success: false };
+    }
+
     const transporter = createTransporter();
 
-    const itemsList = foodItems
-      .map(
-        (item) =>
-          `<li><strong>${item.name}</strong> - Expires in ${item.daysUntilExpiry} day(s)</li>`
-      )
-      .join('');
-
     const mailOptions = {
-      from: `"FreshSave" <${process.env.EMAIL_USER}>`,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
-      subject: '⚠️ Food Items Expiring Soon - FreshSave',
+      subject: '🎉 Welcome to FreshSave!',
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .items-list { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 30px; background: #fa709a; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>⚠️ Food Expiring Soon!</h1>
-            </div>
-            <div class="content">
-              <h2>Don't Let Food Go to Waste</h2>
-              <p>The following items in your kitchen are expiring soon:</p>
-              <div class="items-list">
-                <ul>${itemsList}</ul>
-              </div>
-              <p>💡 <strong>Quick Actions:</strong></p>
-              <ul>
-                <li>Check our recipe suggestions to use these items</li>
-                <li>Freeze items that are suitable for freezing</li>
-                <li>Consider donating if you can't use them</li>
-              </ul>
-              <center>
-                <a href="${process.env.FRONTEND_URL}/recipes" class="button">Get Recipe Ideas</a>
-              </center>
-            </div>
-            <div class="footer">
-              <p>&copy; 2025 FreshSave. Reducing food waste together.</p>
-            </div>
+        <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="font-size: 48px; margin: 0;">🎉</h1>
+            <h2>Welcome ${name}!</h2>
           </div>
-        </body>
-        </html>
+          <div style="padding: 40px 30px; background: white;">
+            <p style="font-size: 18px;">Your account has been verified!</p>
+            <center>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; padding: 15px 40px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0;">Go to Dashboard</a>
+            </center>
+          </div>
+        </div>
       `,
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Expiry notification sent to ${email}`);
+    console.log(`✅ Welcome email sent to ${email}`);
+    return { success: true };
+
   } catch (error) {
-    console.error('❌ Email sending failed:', error);
-    throw new Error('Failed to send expiry notification');
+    console.error('❌ Welcome email failed:', error);
+    return { success: false };
   }
 };
 
-// Send donation notification to NGO
-exports.sendDonationNotification = async (email, donation) => {
+// Test email configuration
+exports.testEmailConfig = async () => {
   try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.log('⚠️ Email credentials not configured in .env');
+      return false;
+    }
+
     const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"FreshSave" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: '🎁 New Food Donation Available - FreshSave',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .info-box { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #4caf50; }
-            .button { display: inline-block; padding: 12px 30px; background: #4caf50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎁 New Donation Available</h1>
-            </div>
-            <div class="content">
-              <h2>${donation.restaurantName}</h2>
-              <div class="info-box">
-                <p><strong>Food Description:</strong> ${donation.foodDescription}</p>
-                <p><strong>Quantity:</strong> ${donation.quantity}</p>
-                <p><strong>Pickup Location:</strong> ${donation.pickupLocation.address}</p>
-                <p><strong>Available Until:</strong> ${new Date(donation.availableUntil).toLocaleString()}</p>
-              </div>
-              <p>This donation is now available for pickup. Please claim it as soon as possible.</p>
-              <center>
-                <a href="${process.env.FRONTEND_URL}/donations" class="button">View & Claim</a>
-              </center>
-            </div>
-            <div class="footer">
-              <p>&copy; 2025 FreshSave. Fighting hunger, reducing waste.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Donation notification sent to ${email}`);
+    await transporter.verify();
+    console.log('✅ Email server is ready');
+    return true;
   } catch (error) {
-    console.error('❌ Email sending failed:', error);
+    console.error('❌ Email configuration error:', error.message);
+    return false;
   }
 };

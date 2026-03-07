@@ -1,10 +1,9 @@
 const User = require('../models/User');
 const crypto = require('crypto');
+const emailService = require('../services/emailService');
 
-// Helper function to send token response
 const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
   const token = user.generateAuthToken();
-
   res.status(statusCode).json({
     success: true,
     message,
@@ -15,19 +14,21 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
       email: user.email,
       role: user.role,
       emailVerified: user.emailVerified,
-      profileImage: user.profileImage
+      profileImage: user.profileImage,
+      organizationName: user.organizationName,
+      organizationType: user.organizationType
     }
   });
 };
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role, phoneNumber, organizationName } = req.body;
+    const { 
+      name, email, password, role, phoneNumber, organizationName,
+      organizationType, organizationDescription, servingCapacity,
+      address, latitude, longitude
+    } = req.body;
 
-    // Validate required fields
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -35,7 +36,8 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Check if user exists
+   
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
@@ -44,26 +46,68 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
-    const user = await User.create({
+    const userData = {
       name,
       email,
       password,
-      role: role || 'user',
-      phoneNumber,
-      organizationName: (role === 'restaurant' || role === 'ngo') ? organizationName : undefined
-    });
+      role: role || 'user'
+    };
 
-    // Generate verification token (optional)
+    if (phoneNumber) userData.phoneNumber = phoneNumber;
+    if (organizationName) userData.organizationName = organizationName;
+    if (organizationType) userData.organizationType = organizationType;
+    if (organizationDescription) userData.organizationDescription = organizationDescription;
+    if (servingCapacity) userData.servingCapacity = parseInt(servingCapacity);
+
+    if (address && (address.city || address.street)) {
+      userData.address = {
+        street: address.street || '',
+        city: address.city || '',
+        state: address.state || '',
+        zipCode: address.zipCode || '',
+        country: address.country || 'India',
+        fullAddress: address.fullAddress || `${address.street || ''}, ${address.city || ''}`
+      };
+    }
+
+    if (latitude && longitude) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        userData.location = {
+          type: 'Point',
+          coordinates: [lng, lat]
+        };
+      }
+    }
+
+    const user = await User.create(userData);
+
+    // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    user.verificationToken = crypto
-      .createHash('sha256')
-      .update(verificationToken)
-      .digest('hex');
+    user.verificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
     await user.save();
 
-    // Send response with token
-    sendTokenResponse(user, 201, res, 'Registration successful!');
+    // IMPORTANT: Send verification email
+    console.log(`📧 Attempting to send verification email to: ${user.email}`);
+    
+    try {
+      const emailResult = await emailService.sendVerificationEmail(user.email, verificationToken);
+      
+      if (emailResult.success) {
+        console.log(`✅ Verification email sent successfully to ${user.email}`);
+      } else {
+        console.error(`❌ Failed to send verification email: ${emailResult.error}`);
+        console.log(`⚠️ User registered but email not sent`);
+      }
+    } catch (emailError) {
+      console.error(`❌ Email sending error:`, emailError);
+      console.log(`⚠️ User registered but email failed`);
+    }
+
+    console.log(`✅ User registered: ${user.email} (${user.role})`);
+    sendTokenResponse(user, 201, res, 'Registration successful! Please check your email to verify your account.');
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -74,14 +118,10 @@ exports.register = async (req, res) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -89,7 +129,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
@@ -98,7 +137,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check password
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -107,9 +145,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Send response with token
     sendTokenResponse(user, 200, res, 'Login successful!');
-
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
@@ -119,189 +155,106 @@ exports.login = async (req, res) => {
   }
 };
 
-// @desc    Get current user
-// @route   GET /api/auth/me
-// @access  Private
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-
-    res.status(200).json({
-      success: true,
-      user
-    });
-
+    res.status(200).json({ success: true, user });
   } catch (error) {
-    console.error('Get me error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to get user'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/auth/profile
-// @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const fieldsToUpdate = {
-      name: req.body.name,
-      phoneNumber: req.body.phoneNumber,
-      address: req.body.address,
-      preferences: req.body.preferences
-    };
+    const fieldsToUpdate = {};
+    if (req.body.name) fieldsToUpdate.name = req.body.name;
+    if (req.body.phoneNumber) fieldsToUpdate.phoneNumber = req.body.phoneNumber;
+    if (req.body.address) fieldsToUpdate.address = req.body.address;
+    if (req.body.preferences) fieldsToUpdate.preferences = req.body.preferences;
 
-    // Remove undefined fields
-    Object.keys(fieldsToUpdate).forEach(key => {
-      if (fieldsToUpdate[key] === undefined) {
-        delete fieldsToUpdate[key];
-      }
-    });
-
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      fieldsToUpdate,
-      { new: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      user
-    });
-
+    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, { new: true, runValidators: true });
+    res.status(200).json({ success: true, user });
   } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to update profile'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Forgot password
-// @route   POST /api/auth/forgot-password
-// @access  Public
 exports.forgotPassword = async (req, res) => {
   try {
     const user = await User.findOne({ email: req.body.email });
-
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No user found with that email'
-      });
+      return res.status(404).json({ success: false, message: 'No user found with that email' });
     }
-
-    // Generate reset token
+    
     const resetToken = user.generatePasswordResetToken();
     await user.save({ validateBeforeSave: false });
-
-    // For now, just return success (email sending can be added later)
-    res.status(200).json({
-      success: true,
-      message: 'Password reset email sent',
-      resetToken // Remove this in production
-    });
-
+    
+    // Send password reset email
+    console.log(`📧 Sending password reset email to: ${user.email}`);
+    const emailResult = await emailService.sendPasswordResetEmail(user.email, resetToken);
+    
+    if (emailResult.success) {
+      console.log(`✅ Password reset email sent to ${user.email}`);
+    } else {
+      console.error(`❌ Failed to send password reset email`);
+    }
+    
+    res.status(200).json({ success: true, message: 'Password reset email sent' });
   } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to process request'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Reset password
-// @route   PUT /api/auth/reset-password/:token
-// @access  Public
 exports.resetPassword = async (req, res) => {
   try {
-    const resetPasswordToken = crypto
-      .createHash('sha256')
-      .update(req.params.token)
-      .digest('hex');
-
-    const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() }
-    });
-
+    const resetPasswordToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const user = await User.findOne({ resetPasswordToken, resetPasswordExpire: { $gt: Date.now() } });
+    
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired reset token'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
     }
-
-    // Set new password
+    
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
     await user.save();
-
+    
     sendTokenResponse(user, 200, res, 'Password reset successful');
-
   } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to reset password'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Verify email
-// @route   GET /api/auth/verify-email/:token
-// @access  Public
 exports.verifyEmail = async (req, res) => {
   try {
-    const verificationToken = crypto
-      .createHash('sha256')
-      .update(req.params.token)
-      .digest('hex');
-
+    const verificationToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
     const user = await User.findOne({ verificationToken });
-
+    
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid verification token'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid verification token' });
     }
-
+    
     user.emailVerified = true;
     user.verificationToken = undefined;
     await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully'
-    });
-
+    
+    // Send welcome email
+    console.log(`📧 Sending welcome email to: ${user.email}`);
+    const emailResult = await emailService.sendWelcomeEmail(user.email, user.name, user.role);
+    
+    if (emailResult.success) {
+      console.log(`✅ Welcome email sent to ${user.email}`);
+    }
+    
+    res.status(200).json({ success: true, message: 'Email verified successfully!' });
   } catch (error) {
-    console.error('Verify email error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to verify email'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Logout user
-// @route   POST /api/auth/logout
-// @access  Private
 exports.logout = async (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Logged out successfully'
-  });
+  res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
