@@ -9,6 +9,7 @@ import Layout from "@/components/Layout";
 // Public pages
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import VerifyEmail from "@/pages/VerifyEmail"; // ADD THIS
 
 // Protected pages
 import Dashboard from "@/pages/Dashboard";
@@ -26,6 +27,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/verify-email/:token" element={<VerifyEmail />} /> {/* ADD THIS */}
 
           {/* Protected Routes */}
           <Route
