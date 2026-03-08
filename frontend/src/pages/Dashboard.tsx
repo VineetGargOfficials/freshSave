@@ -29,42 +29,13 @@ const statusConfig = {
   consumed: { bg: "bg-muted", text: "text-muted-foreground", border: "border-muted", label: "Consumed" }
 };
 
-const [stats, setStats] = useState({
-  total: 0,
-  fresh: 0,
-  warning: 0,
-  urgent: 0,
-  expired: 0
-});
-
-const fetchStats = async () => {
-  try {
-    const response = await axios.get(`${API_URL}/food/stats`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    if (response.data.success) {
-      setStats(response.data.stats);
-    }
-  } catch (error) {
-    console.error('Fetch stats error:', error);
-  }
-};
-
-// Call in useEffect
-useEffect(() => {
-  fetchFoodItems();
-  fetchStats();
-}, []);
-
-
 const categoryEmoji: Record<string, string> = {
   Fruits: "🍎", Vegetables: "🥬", Dairy: "🧀", Meat: "🥩",
   Grains: "🌾", Beverages: "🥤", Snacks: "🍿", Condiments: "🧂",
   Frozen: "🧊", Other: "📦",
 };
+
+
 
 // Calculate days until expiry
 function getDaysUntilExpiry(expiryDate: string): number {
@@ -82,6 +53,7 @@ export default function Dashboard() {
   const [items, setItems] = useState<FoodItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
 
   useEffect(() => {
     fetchFoodItems();

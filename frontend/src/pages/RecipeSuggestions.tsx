@@ -1,18 +1,30 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UtensilsCrossed, ExternalLink, ChefHat } from "lucide-react";
-import { getExpiringItems, getFoodItems } from "@/lib/storage";
-import { FoodItem } from "@/types/food";
+import { UtensilsCrossed, ExternalLink, ChefHat, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import axios from "axios";
+import { useAuth } from "@/contexts/AuthContext";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 interface Recipe {
   title: string;
   description: string;
   ingredients: string[];
   youtubeSearch: string;
+}
+
+interface FoodItem {
+  _id: string;
+  name: string;
+  quantity: string;
+  category: string;
+  expiryDate: string;
+  status: string;
 }
 
 // Mock recipe suggestions based on ingredients
@@ -69,7 +81,7 @@ function suggestRecipes(ingredients: string[]): Recipe[] {
     });
   }
 
-  if (recipes.length === 0) {
+  if (recipes.length === 0 && names.length > 0) {
     recipes.push({
       title: "Kitchen Sink Soup",
       description: "Throw all your expiring ingredients into a pot!",
@@ -81,55 +93,146 @@ function suggestRecipes(ingredients: string[]): Recipe[] {
   return recipes;
 }
 
+// Helper: days until expiry
+function getDaysUntilExpiry(expiryDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiryDate);
+  expiry.setHours(0, 0, 0, 0);
+  const diffTime = expiry.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
 export default function RecipeSuggestions() {
+  const { token } = useAuth();
   const [allItems, setAllItems] = useState<FoodItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [suggesting, setSuggesting] = useState(false);
 
   useEffect(() => {
-    const items = getFoodItems();
-    setAllItems(items);
-    // Auto-select expiring items
-    const expiring = getExpiringItems(5);
-    setSelected(expiring.map((i) => i.id));
+    fetchFoodItems();
   }, []);
 
+  const fetchFoodItems = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/food`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.data.success) {
+        const items: FoodItem[] = response.data.data || [];
+        setAllItems(items);
+
+        // Auto-select items expiring in next 5 days
+        const expiringIds = items
+          .filter((item) => {
+            const days = getDaysUntilExpiry(item.expiryDate);
+            return days >= 0 && days <= 5 && item.status !== "consumed";
+          })
+          .map((item) => item._id);
+
+        setSelected(expiringIds);
+      }
+    } catch (error: any) {
+      console.error("Fetch food items error:", error);
+      toast.error(error.response?.data?.message || "Failed to load food items");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
-    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
   const handleSuggest = () => {
-    const selectedNames = allItems.filter((i) => selected.includes(i.id)).map((i) => i.name);
-    setRecipes(suggestRecipes(selectedNames));
+    setSuggesting(true);
+    try {
+      const selectedNames = allItems
+        .filter((i) => selected.includes(i._id))
+        .map((i) => i.name);
+      const suggested = suggestRecipes(selectedNames);
+      setRecipes(suggested);
+    } finally {
+      setSuggesting(false);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-lg mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-3xl font-bold text-foreground">Recipe Ideas</h1>
-        <p className="text-muted-foreground mt-1">Turn expiring food into delicious meals</p>
+        <p className="text-muted-foreground mt-1">
+          Turn your expiring food into delicious meals
+        </p>
       </motion.div>
 
       {/* Ingredient selector */}
       <Card className="glass-card p-5">
-        <p className="text-sm font-medium text-muted-foreground mb-3">Select ingredients to use:</p>
-        <div className="flex flex-wrap gap-2">
-          {allItems.map((item) => (
-            <Badge
-              key={item.id}
-              variant={selected.includes(item.id) ? "default" : "outline"}
-              className={cn("cursor-pointer transition-all", selected.includes(item.id) && "bg-primary text-primary-foreground")}
-              onClick={() => toggleSelect(item.id)}
-            >
-              {item.name}
-            </Badge>
-          ))}
-        </div>
-        {allItems.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">Add food items first to get recipe suggestions</p>
+        <p className="text-sm font-medium text-muted-foreground mb-3">
+          Select ingredients to use:
+        </p>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : allItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Add food items first to get recipe suggestions
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {allItems.map((item) => {
+              const isSelected = selected.includes(item._id);
+              const days = getDaysUntilExpiry(item.expiryDate);
+              const isExpiringSoon = days >= 0 && days <= 5;
+
+              return (
+                <Badge
+                  key={item._id}
+                  variant={isSelected ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer transition-all",
+                    isSelected && "bg-primary text-primary-foreground",
+                    isExpiringSoon && !isSelected && "border-warning/60 text-warning"
+                  )}
+                  onClick={() => toggleSelect(item._id)}
+                >
+                  {item.name}
+                  {isExpiringSoon && (
+                    <span className="ml-1 text-[10px] opacity-80">
+                      ({days === 0 ? "today" : `${days}d`})
+                    </span>
+                  )}
+                </Badge>
+              );
+            })}
+          </div>
         )}
-        <Button onClick={handleSuggest} disabled={selected.length === 0} className="w-full mt-4 gradient-primary text-primary-foreground hover:opacity-90">
-          <ChefHat className="h-4 w-4 mr-2" /> Get Recipe Ideas
+
+        <Button
+          onClick={handleSuggest}
+          disabled={selected.length === 0 || loading || suggesting}
+          className="w-full mt-4 gradient-primary text-primary-foreground hover:opacity-90"
+        >
+          {suggesting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generating recipes...
+            </>
+          ) : (
+            <>
+              <ChefHat className="h-4 w-4 mr-2" /> Get Recipe Ideas
+            </>
+          )}
         </Button>
       </Card>
 
@@ -137,24 +240,37 @@ export default function RecipeSuggestions() {
       {recipes.length > 0 && (
         <div className="space-y-3">
           {recipes.map((recipe, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
               <Card className="glass-card p-5">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-primary">
                     <UtensilsCrossed className="h-5 w-5 text-primary-foreground" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">{recipe.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">{recipe.description}</p>
+                    <h3 className="font-semibold text-foreground">
+                      {recipe.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {recipe.description}
+                    </p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {recipe.ingredients.map((ing) => (
-                        <Badge key={ing} variant="outline" className="text-xs">{ing}</Badge>
+                        <Badge key={ing} variant="outline" className="text-xs">
+                          {ing}
+                        </Badge>
                       ))}
                     </div>
                   </div>
                 </div>
                 <a
-                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipe.youtubeSearch)}`}
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
+                    recipe.youtubeSearch
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-3 flex items-center gap-2 text-sm font-medium text-primary hover:underline"
