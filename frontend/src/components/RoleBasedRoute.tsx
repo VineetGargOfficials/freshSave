@@ -1,13 +1,19 @@
-// src/components/ProtectedRoute.tsx
+// src/components/RoleBasedRoute.tsx
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
-interface ProtectedRouteProps {
+interface RoleBasedRouteProps {
   children: React.ReactNode;
+  allowedRoles: string[];
+  redirectTo?: string;
 }
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function RoleBasedRoute({ 
+  children, 
+  allowedRoles,
+  redirectTo = "/" 
+}: RoleBasedRouteProps) {
   const { user, loading, token } = useAuth();
   const location = useLocation();
 
@@ -26,17 +32,17 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Redirect based on role
-  if (user.role === 'ngo' && !location.pathname.startsWith('/ngo')) {
-    return <Navigate to="/ngo" replace />;
-  }
-
-  if (user.role === 'restaurant' && !location.pathname.startsWith('/restaurant')) {
-    return <Navigate to="/restaurant" replace />;
-  }
-
-  if (user.role === 'user' && (location.pathname.startsWith('/ngo') || location.pathname.startsWith('/restaurant'))) {
-    return <Navigate to="/" replace />;
+  if (!allowedRoles.includes(user.role)) {
+    // Redirect to appropriate dashboard based on role
+    switch (user.role) {
+      case 'ngo':
+        return <Navigate to="/ngo" replace />;
+      case 'restaurant':
+        return <Navigate to="/restaurant" replace />;
+      case 'user':
+      default:
+        return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

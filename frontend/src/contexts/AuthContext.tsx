@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 
@@ -7,9 +8,12 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: 'user' | 'ngo' | 'restaurant';
   emailVerified: boolean;
   profileImage?: string;
+  organizationName?: string;
+  organizationType?: string;
+  phoneNumber?: string;
 }
 
 interface AuthContextType {
@@ -20,6 +24,9 @@ interface AuthContextType {
   register: (userData: any) => Promise<void>;
   logout: () => void;
   updateUser: (userData: any) => Promise<void>;
+  isUser: boolean;
+  isNGO: boolean;
+  isRestaurant: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +61,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchUser = async () => {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
-      setUser(response.data.user);
+      if (response.data.success && response.data.user) {
+        setUser(response.data.user);
+      } else {
+        logout();
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
@@ -65,24 +76,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const login = async (email: string, password: string) => {
     const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-    const { token, user } = response.data;
     
-    localStorage.setItem('token', token);
-    setToken(token);
-    setUser(user);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    if (response.data.success) {
+      const { token: newToken, user: userData } = response.data;
+      
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    } else {
+      throw new Error(response.data.message || 'Login failed');
+    }
   };
 
   const register = async (userData: any) => {
     const response = await axios.post(`${API_URL}/auth/register`, userData);
-    // Optionally auto-login after registration
-    if (response.data.token) {
-      const { token, user } = response.data;
-      localStorage.setItem('token', token);
-      setToken(token);
-      setUser(user);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Registration failed');
     }
+
+    // Don't auto-login after registration - require email verification
+    return response.data;
   };
 
   const logout = () => {
@@ -94,11 +109,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const updateUser = async (userData: any) => {
     const response = await axios.put(`${API_URL}/auth/profile`, userData);
-    setUser(response.data.user);
+    if (response.data.success && response.data.user) {
+      setUser(response.data.user);
+    }
   };
 
+  // Role helpers
+  const isUser = user?.role === 'user';
+  const isNGO = user?.role === 'ngo';
+  const isRestaurant = user?.role === 'restaurant';
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        token, 
+        loading, 
+        login, 
+        register, 
+        logout, 
+        updateUser,
+        isUser,
+        isNGO,
+        isRestaurant
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

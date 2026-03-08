@@ -1,53 +1,264 @@
+// src/App.tsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 // Layout
 import Layout from "@/components/Layout";
 
-// Public pages
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import VerifyEmail from "@/pages/VerifyEmail"; // ADD THIS
+// Auth pages
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import VerifyEmail from "@/pages/auth/VerifyEmail";
 
-// Protected pages
-import Dashboard from "@/pages/Dashboard";
-import AddFood from "@/pages/AddFood";
-import ScanFood from "@/pages/ScanFood";
-import RecipeSuggestions from "@/pages/RecipeSuggestions";
-import Donations from "@/pages/Donations";
+// User pages (Individual)
+import Dashboard from "@/pages/user/Dashboard";
+import AddFood from "@/pages/user/AddFood";
+import ScanFood from "@/pages/user/ScanFood";
+import RecipeSuggestions from "@/pages/user/RecipeSuggestions";
+import Donations from "@/pages/user/Donations";
+
+// NGO pages
+import NGODashboard from "@/pages/ngo/NGODashboard";
+
+// Restaurant pages
+import RestaurantDashboard from "@/pages/restaurants/RestaurantDashboard";
+
+// Loading component
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+// Role-based redirect component
+function RoleBasedRedirect() {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect based on user role
+  switch (user.role) {
+    case 'ngo':
+      return <Navigate to="/ngo" replace />;
+    case 'restaurant':
+      return <Navigate to="/restaurant" replace />;
+    case 'user':
+    default:
+      return <Navigate to="/dashboard" replace />;
+  }
+}
+
+// Protected route for individual users only
+function UserProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect non-users to their respective dashboards
+  if (user.role === 'ngo') {
+    return <Navigate to="/ngo" replace />;
+  }
+
+  if (user.role === 'restaurant') {
+    return <Navigate to="/restaurant" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Protected route for NGO
+function NGOProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'ngo') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Protected route for Restaurant
+function RestaurantProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'restaurant') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Auth route (redirect if already logged in)
+function AuthRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (token && user) {
+    // Redirect to appropriate dashboard
+    switch (user.role) {
+      case 'ngo':
+        return <Navigate to="/ngo" replace />;
+      case 'restaurant':
+        return <Navigate to="/restaurant" replace />;
+      default:
+        return <Navigate to="/dashboard" replace />;
+    }
+  }
+
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Root redirect based on role */}
+      <Route path="/" element={<RoleBasedRedirect />} />
+
+      {/* ==================== AUTH ROUTES ==================== */}
+      <Route
+        path="/login"
+        element={
+          <AuthRoute>
+            <Login />
+          </AuthRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <AuthRoute>
+            <Register />
+          </AuthRoute>
+        }
+      />
+      <Route path="/verify-email/:token" element={<VerifyEmail />} />
+
+      {/* ==================== INDIVIDUAL USER ROUTES ==================== */}
+      <Route
+        path="/dashboard"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+      </Route>
+
+      <Route
+        path="/add-food"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<AddFood />} />
+      </Route>
+
+      <Route
+        path="/scan"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<ScanFood />} />
+      </Route>
+
+      <Route
+        path="/recipes"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<RecipeSuggestions />} />
+      </Route>
+
+      <Route
+        path="/donations"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<Donations />} />
+      </Route>
+
+      {/* ==================== NGO ROUTES ==================== */}
+      <Route
+        path="/ngo"
+        element={
+          <NGOProtectedRoute>
+            <NGODashboard />
+          </NGOProtectedRoute>
+        }
+      />
+
+      {/* ==================== RESTAURANT ROUTES ==================== */}
+      <Route
+        path="/restaurant"
+        element={
+          <RestaurantProtectedRoute>
+            <RestaurantDashboard />
+          </RestaurantProtectedRoute>
+        }
+      />
+
+      {/* ==================== CATCH ALL ==================== */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Toaster position="top-right" richColors />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/verify-email/:token" element={<VerifyEmail />} /> {/* ADD THIS */}
-
-          {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="add-food" element={<AddFood />} />
-            <Route path="scan" element={<ScanFood />} />
-            <Route path="recipes" element={<RecipeSuggestions />} />
-            <Route path="donations" element={<Donations />} />
-          </Route>
-
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRoutes />
       </Router>
     </AuthProvider>
   );
