@@ -121,48 +121,16 @@ export default function Layout() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 glass-card border-t safe-area-bottom">
         <div className="flex items-center justify-around py-2">
-          {navItems.map((item) => {
-            const active = isActive(item.path);
-            return (
-              <NavLink
+          {navItems.map((item) => (
+              <button
                 key={item.path}
-                to={item.path}
-                className="flex flex-col items-center gap-1 px-3 py-2 relative"
+                onClick={() => navigate(item.path)}
+                className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-accent transition-colors min-w-[60px]"
               >
-                {/* Active Indicator */}
-                {active && (
-                  <motion.div
-                    layoutId="nav-indicator"
-                    className="absolute -top-2 left-1/2 -translate-x-1/2 w-12 h-1 rounded-full gradient-primary"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-
-                {/* Icon */}
-                <motion.div
-                  whileTap={{ scale: 0.9 }}
-                  className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-xl transition-all",
-                    active
-                      ? "gradient-primary text-primary-foreground shadow-lg"
-                      : "text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                </motion.div>
-
-                {/* Label */}
-                <span
-                  className={cn(
-                    "text-xs font-medium transition-colors",
-                    active ? "text-primary" : "text-muted-foreground"
-                  )}
-                >
-                  {item.label}
-                </span>
-              </NavLink>
-            );
-          })}
+                <item.icon className="h-5 w-5" />
+                <span className="text-xs">{item.label}</span>
+              </button>
+            ))}
         </div>
       </nav>
     </div>
