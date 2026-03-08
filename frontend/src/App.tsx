@@ -5,7 +5,9 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
 // Layout
-import Layout from "@/components/Layout";
+import Layout from "@/components/layout/Layout";
+import NGOLayout from "@/components/layout/NGOLayout";
+import RestaurantLayout from "@/components/layout/RestaurantLayout";
 
 // Auth pages
 import Login from "@/pages/auth/Login";
@@ -21,9 +23,13 @@ import Donations from "@/pages/user/Donations";
 
 // NGO pages
 import NGODashboard from "@/pages/ngo/NGODashboard";
+import NGOAnalytics from "@/pages/ngo/NGOAnalytics";
 
 // Restaurant pages
-import RestaurantDashboard from "@/pages/restaurants/RestaurantDashboard";
+import RestaurantHome from "@/pages/restaurants/RestaurantDashboard";
+import ListFood from "@/pages/restaurants/ListFood";
+import DonationHistory from "@/pages/restaurants/DonationHistory";
+import RestaurantAnalytics from "@/pages/restaurants/RestaurantAnalytics";
 
 // Loading component
 function LoadingScreen() {
@@ -232,20 +238,20 @@ function AppRoutes() {
         path="/ngo"
         element={
           <NGOProtectedRoute>
-            <NGODashboard />
+            <NGOLayout />
           </NGOProtectedRoute>
         }
-      />
-
-      {/* ==================== RESTAURANT ROUTES ==================== */}
-      <Route
-        path="/restaurant"
-        element={
-          <RestaurantProtectedRoute>
-            <RestaurantDashboard />
-          </RestaurantProtectedRoute>
-        }
-      />
+      >
+        <Route index element={<NGODashboard />} />
+        <Route path="analytics" element={<NGOAnalytics />} />
+      </Route>
+ {/* ==================== RESTAURANT ROUTES ==================== */}
+      <Route path="/restaurant" element={<RestaurantProtectedRoute><RestaurantLayout /></RestaurantProtectedRoute>}>
+        <Route index element={<RestaurantHome />} />
+        <Route path="list-food" element={<ListFood />} />
+        <Route path="history" element={<DonationHistory />} />
+        <Route path="analytics" element={<RestaurantAnalytics />} />
+      </Route>
 
       {/* ==================== CATCH ALL ==================== */}
       <Route path="*" element={<Navigate to="/" replace />} />

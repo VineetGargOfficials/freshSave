@@ -1,17 +1,17 @@
-// src/components/layout/RestaurantLayout.tsx
+// src/components/Layout.tsx
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Home,
-  PlusCircle,
-  History,
-  BarChart3,
-  LogOut,
+  Plus,
+  Camera,
+  ChefHat,
+  Heart,
   Bell,
   User,
-  ChevronDown,
-  Building2,
   Settings,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +26,14 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
-  { path: "/restaurant", icon: Home, label: "Home" },
-  { path: "/restaurant/list-food", icon: PlusCircle, label: "List Food" },
-  { path: "/restaurant/history", icon: History, label: "History" },
-  { path: "/restaurant/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/dashboard", icon: Home, label: "Home" },
+  { path: "/add-food", icon: Plus, label: "Add" },
+  { path: "/scan", icon: Camera, label: "Scan" },
+  { path: "/recipes", icon: ChefHat, label: "Recipes" },
+  { path: "/donations", icon: Heart, label: "Donate" },
 ];
 
-export default function RestaurantLayout() {
+export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,8 +45,8 @@ export default function RestaurantLayout() {
 
   // Check if current path matches nav item
   const isActive = (path: string) => {
-    if (path === "/restaurant") {
-      return location.pathname === "/restaurant";
+    if (path === "/dashboard") {
+      return location.pathname === "/dashboard";
     }
     return location.pathname.startsWith(path);
   };
@@ -63,7 +64,7 @@ export default function RestaurantLayout() {
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
-                5
+                2
               </span>
             </Button>
 
@@ -72,12 +73,12 @@ export default function RestaurantLayout() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold">
-                    {user?.name?.charAt(0).toUpperCase() || "R"}
+                    {user?.name?.charAt(0).toUpperCase() || "U"}
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[120px]">
-                      {user?.organizationName || "Restaurant"}
+                    <p className="text-xs text-muted-foreground">
+                      Individual User
                     </p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:block" />
@@ -90,25 +91,16 @@ export default function RestaurantLayout() {
                     <span className="text-xs font-normal text-muted-foreground">
                       {user?.email}
                     </span>
-                    {user?.organizationName && (
-                      <span className="text-xs font-medium text-primary mt-1">
-                        {user.organizationName}
-                      </span>
-                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/restaurant/profile")}>
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="h-4 w-4 mr-2" />
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/restaurant/settings")}>
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Restaurant Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="h-4 w-4 mr-2" />
-                  Account Settings
+                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-500">
@@ -129,16 +121,48 @@ export default function RestaurantLayout() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 glass-card border-t safe-area-bottom">
         <div className="flex items-center justify-around py-2">
-          {navItems.map((item) => (
-              <button
+          {navItems.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <NavLink
                 key={item.path}
-                onClick={() => navigate(item.path)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-accent transition-colors min-w-[60px]"
+                to={item.path}
+                className="flex flex-col items-center gap-1 px-3 py-2 relative"
               >
-                <item.icon className="h-5 w-5" />
-                <span className="text-xs">{item.label}</span>
-              </button>
-            ))}
+                {/* Active Indicator */}
+                {active && (
+                  <motion.div
+                    layoutId="nav-indicator"
+                    className="absolute -top-2 left-1/2 -translate-x-1/2 w-12 h-1 rounded-full gradient-primary"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+
+                {/* Icon */}
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-xl transition-all",
+                    active
+                      ? "gradient-primary text-primary-foreground shadow-lg"
+                      : "text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                </motion.div>
+
+                {/* Label */}
+                <span
+                  className={cn(
+                    "text-xs font-medium transition-colors",
+                    active ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                </span>
+              </NavLink>
+            );
+          })}
         </div>
       </nav>
     </div>
