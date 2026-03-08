@@ -15,19 +15,28 @@ exports.getRecipeSuggestions = async (req, res) => {
       });
     }
     
+    console.log('🔍 Getting recipe suggestions for:', ingredients);
+    
     const recipes = await recipeService.generateRecipeSuggestions(ingredients);
+    
+    // Ensure recipes is always an array
+    const validRecipes = Array.isArray(recipes) ? recipes : [];
     
     res.status(200).json({
       success: true,
-      count: recipes.length,
-      data: recipes
+      count: validRecipes.length,
+      data: validRecipes
     });
 
   } catch (error) {
     console.error('Get recipe suggestions error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to get recipe suggestions'
+    
+    // Return empty array instead of error to prevent frontend crash
+    res.status(200).json({
+      success: true,
+      count: 0,
+      data: [],
+      message: 'Unable to generate recipes at the moment. Please try again.'
     });
   }
 };
