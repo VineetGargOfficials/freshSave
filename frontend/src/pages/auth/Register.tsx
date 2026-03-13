@@ -102,7 +102,7 @@ export default function Register() {
             transition={{ type: "spring", duration: 0.6 }}
             className="inline-flex h-16 w-16 items-center justify-center rounded-full gradient-primary mb-4"
           >
-            <span className="text-3xl">🌱</span>
+            <span className="text-3xl">🥗</span>
           </motion.div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Join FreshSave</h1>
           <p className="text-muted-foreground">Start reducing food waste today</p>

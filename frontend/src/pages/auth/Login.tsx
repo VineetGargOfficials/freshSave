@@ -153,12 +153,7 @@ export default function Login() {
           </div>
         </Card>
 
-        {/* Demo Credentials */}
-        <Card className="glass-card p-4 mt-4 border-warning/20">
-          <p className="text-xs text-muted-foreground text-center">
-            <strong>Demo:</strong> demo@freshsave.com / password123
-          </p>
-        </Card>
+       
       </motion.div>
     </div>
   );
