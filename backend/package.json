@@ -30,6 +30,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "openai": "^6.27.0",
+    "streamifier": "^0.1.1",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
