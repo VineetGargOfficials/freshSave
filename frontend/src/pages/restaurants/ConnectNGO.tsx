@@ -283,7 +283,7 @@ export default function ConnectNGOs() {
             </p>
           </div>
         </div>
-        <Button
+        {/* <Button
           variant="outline"
           size="sm"
           onClick={handleRefresh}
@@ -293,7 +293,7 @@ export default function ConnectNGOs() {
             className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
           />
           Refresh
-        </Button>
+        </Button> */}
       </motion.div>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -314,7 +314,7 @@ export default function ConnectNGOs() {
             bg: "bg-blue-500/10",
           },
           {
-            label: "Email Verified",
+            label: "Verified",
             value: stats.verifiedNGOs,
             icon: CheckCircle2,
             color: "text-green-500",
