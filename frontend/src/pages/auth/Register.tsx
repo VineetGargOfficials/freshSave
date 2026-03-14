@@ -646,12 +646,7 @@ export default function Register() {
             </p>
           </div>
 
-          {/* Session info banner */}
-          <div className="mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 text-center">
-            <p className="text-xs text-blue-600">
-              🔒 <strong>Session-based login</strong> — Each browser tab maintains its own independent session
-            </p>
-          </div>
+          
         </Card>
       </motion.div>
     </div>
