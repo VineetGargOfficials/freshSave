@@ -8,8 +8,8 @@ const {
   getExpiringItems,
   consumeFood,
   getStats
-} = require('../controllers/foodController');
-const { protect } = require('../middleware/auth');
+} = require('../../controllers/foodController');
+const { protect } = require('../../middleware/auth');
 
 const router = express.Router();
 

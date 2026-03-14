@@ -1,6 +1,5 @@
 // src/components/layout/RestaurantLayout.tsx
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
   PlusCircle,
@@ -12,6 +11,7 @@ import {
   ChevronDown,
   Building2,
   Settings,
+  HandHeart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Bottom nav items (unchanged)
 const navItems = [
   { path: "/restaurant", icon: Home, label: "Home" },
   { path: "/restaurant/list-food", icon: PlusCircle, label: "List Food" },
@@ -42,7 +43,6 @@ export default function RestaurantLayout() {
     navigate("/login");
   };
 
-  // Check if current path matches nav item
   const isActive = (path: string) => {
     if (path === "/restaurant") {
       return location.pathname === "/restaurant";
@@ -102,6 +102,15 @@ export default function RestaurantLayout() {
                   <User className="h-4 w-4 mr-2" />
                   Profile
                 </DropdownMenuItem>
+                
+                {/* ════════════════════════════════════════════════════════════ */}
+                {/* NEW: Connect NGOs menu item */}
+                {/* ════════════════════════════════════════════════════════════ */}
+                <DropdownMenuItem onClick={() => navigate("/restaurant/connect-ngos")}>
+                  <HandHeart className="h-4 w-4 mr-2" />
+                  Connect with NGOs
+                </DropdownMenuItem>
+                
                 <DropdownMenuItem onClick={() => navigate("/restaurant/settings")}>
                   <Building2 className="h-4 w-4 mr-2" />
                   Restaurant Settings
@@ -130,15 +139,20 @@ export default function RestaurantLayout() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 glass-card border-t safe-area-bottom">
         <div className="flex items-center justify-around py-2">
           {navItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-accent transition-colors min-w-[60px]"
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="text-xs">{item.label}</span>
-              </button>
-            ))}
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={cn(
+                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors min-w-[60px]",
+                isActive(item.path)
+                  ? "text-primary bg-primary/10"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="text-xs">{item.label}</span>
+            </button>
+          ))}
         </div>
       </nav>
     </div>

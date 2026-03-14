@@ -6,11 +6,13 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/authRoutes');
-const foodRoutes = require('./routes/foodRoutes');
-const donationRoutes = require('./routes/donationRoutes');
-const recipeRoutes = require('./routes/recipeRoutes');
-const ocrRoutes = require('./routes/ocrRoutes');
-const restaurantRoutes = require('./routes/restaurantRoutes');
+const foodRoutes = require('./routes/IndividualUsers/foodRoutes');
+const donationRoutes = require('./routes/IndividualUsers/donationRoutes');
+const recipeRoutes = require('./routes/IndividualUsers/recipeRoutes');
+const ocrRoutes = require('./routes/IndividualUsers/ocrRoutes');
+const restaurantRoutes = require('./routes/Restaurants/restaurantRoutes');
+const geoRoutes = require('./routes/geoRoutes');
+const ngoRoutes = require('./routes/ngoRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -87,6 +89,8 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/restaurants', restaurantRoutes);
+app.use('/api/geo', geoRoutes);
+app.use('/api/ngos', ngoRoutes);
 
 // Optional: Test routes (only if file exists)
 try {

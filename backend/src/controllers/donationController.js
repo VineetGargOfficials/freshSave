@@ -1,4 +1,4 @@
-const Donation = require('../models/Donation');
+const Donation = require('../models/IndividualUsers/Donation');
 
 // @desc    Get all donations
 // @route   GET /api/donations

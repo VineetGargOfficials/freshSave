@@ -13,9 +13,9 @@ const {
   deleteListing,
   toggleAvailability,
   getMyStats
-} = require('../controllers/restaurantController');
+} = require('../../controllers/restaurantController');
 
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize } = require('../../middleware/auth');
 
 const router = express.Router();
 

@@ -1,4 +1,4 @@
-const FoodItem = require('../models/FoodItem');
+const FoodItem = require('../models/IndividualUsers/FoodItem');
 
 // @desc    Get all food items for logged-in user
 // @route   GET /api/food

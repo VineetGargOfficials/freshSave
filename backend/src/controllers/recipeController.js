@@ -1,4 +1,4 @@
-const Recipe = require('../models/Recipe');
+const Recipe = require('../models/IndividualUsers/Recipe');
 const recipeService = require('../services/recipeService');
 
 // @desc    Get recipe suggestions based on ingredients

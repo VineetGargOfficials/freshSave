@@ -1,6 +1,5 @@
 // src/components/layout/NGOLayout.tsx
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
   BarChart3,
@@ -10,6 +9,7 @@ import {
   ChevronDown,
   Building2,
   Settings,
+  HandHeart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +38,6 @@ export default function NGOLayout() {
     navigate("/login");
   };
 
-  // Check if current path matches nav item
   const isActive = (path: string) => {
     if (path === "/ngo") {
       return location.pathname === "/ngo";
@@ -53,7 +52,6 @@ export default function NGOLayout() {
         <div className="px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold gradient-text">🥗 FreshSave</h1>
 
-          {/* Right Section */}
           <div className="flex items-center gap-2">
             {/* Notifications */}
             <Button variant="ghost" size="icon" className="relative">
@@ -94,14 +92,18 @@ export default function NGOLayout() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/ngo/profile")}>
                   <User className="h-4 w-4 mr-2" />
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/ngo/profile")}>
                   <Building2 className="h-4 w-4 mr-2" />
                   Organization Settings
                 </DropdownMenuItem>
+                {/* <DropdownMenuItem onClick={() => navigate("/ngo/connect-restaurants")}>
+                  <HandHeart className="h-4 w-4 mr-2 text-blue-500" />
+                  Connect Restaurants
+                </DropdownMenuItem> */}
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
                   Settings
@@ -126,15 +128,22 @@ export default function NGOLayout() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 glass-card border-t safe-area-bottom">
         <div className="flex items-center justify-around py-2">
           {navItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-accent transition-colors min-w-[60px]"
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="text-xs">{item.label}</span>
-              </button>
-            ))}
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={cn(
+                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors min-w-[60px]",
+                isActive(item.path)
+                  ? "text-primary bg-primary/10"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <item.icon className={cn("h-5 w-5", isActive(item.path) && "text-primary")} />
+              <span className={cn("text-xs", isActive(item.path) && "font-medium")}>
+                {item.label}
+              </span>
+            </button>
+          ))}
         </div>
       </nav>
     </div>

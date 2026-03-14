@@ -1,7 +1,7 @@
 const express = require('express');
-const { scanFoodImage, extractText } = require('../controllers/ocrController');
-const { protect } = require('../middleware/auth');
-const upload = require('../middleware/upload');
+const { scanFoodImage, extractText } = require('../../controllers/ocrController');
+const { protect } = require('../../middleware/auth');
+const upload = require('../../middleware/upload');
 
 const router = express.Router();
 

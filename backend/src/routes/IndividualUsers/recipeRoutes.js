@@ -5,8 +5,8 @@ const {
   getRecipe,
   createRecipe,
   likeRecipe
-} = require('../controllers/recipeController');
-const { protect } = require('../middleware/auth');
+} = require('../../controllers/recipeController');
+const { protect } = require('../../middleware/auth');
 
 const router = express.Router();
 

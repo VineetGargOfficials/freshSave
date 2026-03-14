@@ -24,12 +24,15 @@ import Donations from "@/pages/user/Donations";
 // NGO pages
 import NGODashboard from "@/pages/ngo/NGODashboard";
 import NGOAnalytics from "@/pages/ngo/NGOAnalytics";
+import NGOProfile from "./pages/ngo/NGOProfile";
 
 // Restaurant pages
 import RestaurantHome from "@/pages/restaurants/RestaurantDashboard";
 import ListFood from "@/pages/restaurants/ListFood";
 import DonationHistory from "@/pages/restaurants/DonationHistory";
 import RestaurantAnalytics from "@/pages/restaurants/RestaurantAnalytics";
+import ConnectNGOs from "./pages/restaurants/ConnectNGO";
+import RestaurantProfile from "./pages/restaurants/RestaurantProfile";
 
 // Loading component
 function LoadingScreen() {
@@ -234,23 +237,19 @@ function AppRoutes() {
       </Route>
 
       {/* ==================== NGO ROUTES ==================== */}
-      <Route
-        path="/ngo"
-        element={
-          <NGOProtectedRoute>
-            <NGOLayout />
-          </NGOProtectedRoute>
-        }
-      >
+      <Route path="/ngo" element={<NGOProtectedRoute><NGOLayout /></NGOProtectedRoute>}>
         <Route index element={<NGODashboard />} />
         <Route path="analytics" element={<NGOAnalytics />} />
+        <Route path="profile" element={<NGOProfile />} />
       </Route>
  {/* ==================== RESTAURANT ROUTES ==================== */}
       <Route path="/restaurant" element={<RestaurantProtectedRoute><RestaurantLayout /></RestaurantProtectedRoute>}>
         <Route index element={<RestaurantHome />} />
         <Route path="list-food" element={<ListFood />} />
+        <Route path="connect-ngos" element={<ConnectNGOs/>}/>
         <Route path="history" element={<DonationHistory />} />
         <Route path="analytics" element={<RestaurantAnalytics />} />
+        <Route path="profile" element={<RestaurantProfile />} />
       </Route>
 
       {/* ==================== CATCH ALL ==================== */}

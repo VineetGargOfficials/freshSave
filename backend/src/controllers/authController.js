@@ -58,6 +58,17 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
   });
 };
 
+// ── Valid enum values for validation ──────────────────────────────────────────
+const VALID_ORGANIZATION_TYPES = [
+  'restaurant', 'cloud_kitchen', 'catering', 'hotel', 'cafe', 'bakery',
+  'food_truck', 'ngo', 'corporate_canteen', 'school_canteen', 'other'
+];
+
+const VALID_NGO_TYPES = [
+  'orphanage', 'old_age_home', 'shelter', 'food_bank', 'community_kitchen',
+  'educational_trust', 'hospital', 'rehabilitation', 'animal_shelter', 'other'
+];
+
 // ─── REGISTER ────────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
   try {
@@ -130,10 +141,20 @@ exports.register = async (req, res) => {
       }
     }
 
-    // ── Restaurant / Caterer fields ──────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // RESTAURANT / CATERER fields
+    // ══════════════════════════════════════════════════════════════════════════
     if (role === 'restaurant') {
       if (organizationName) userData.organizationName = organizationName;
-      if (organizationType) userData.organizationType = organizationType;
+      
+      // FIX: Validate organizationType against allowed values
+      if (organizationType && VALID_ORGANIZATION_TYPES.includes(organizationType)) {
+        userData.organizationType = organizationType;
+      } else {
+        // Default to 'restaurant' if not provided or invalid
+        userData.organizationType = 'restaurant';
+      }
+      
       if (fssaiLicense) userData.fssaiLicense = fssaiLicense;
       if (cuisineTypes) userData.cuisineTypes = Array.isArray(cuisineTypes) ? cuisineTypes : [cuisineTypes];
       if (seatingCapacity) userData.seatingCapacity = parseInt(seatingCapacity);
@@ -147,12 +168,23 @@ exports.register = async (req, res) => {
       if (socialLinks) userData.socialLinks = socialLinks;
     }
 
-    // ── NGO fields ──────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // NGO fields - FIX: organizationType is always 'ngo', specific type goes to ngoType
+    // ══════════════════════════════════════════════════════════════════════════
     if (role === 'ngo') {
       if (organizationName) userData.organizationName = organizationName;
-      if (organizationType) userData.organizationType = organizationType;
+      
+      // FIX: For NGOs, organizationType is always 'ngo'
+      // The specific NGO subtype (orphanage, shelter, etc.) goes into ngoType
+      userData.organizationType = 'ngo';
+      
       if (ngoRegistrationNumber) userData.ngoRegistrationNumber = ngoRegistrationNumber;
-      if (ngoType) userData.ngoType = ngoType;
+      
+      // FIX: Validate ngoType against allowed values
+      if (ngoType && VALID_NGO_TYPES.includes(ngoType)) {
+        userData.ngoType = ngoType;
+      }
+      
       if (beneficiaryTypes) userData.beneficiaryTypes = Array.isArray(beneficiaryTypes) ? beneficiaryTypes : [beneficiaryTypes];
       if (dailyBeneficiaries) userData.dailyBeneficiaries = parseInt(dailyBeneficiaries);
       if (totalBeneficiaries) userData.totalBeneficiaries = parseInt(totalBeneficiaries);
@@ -240,6 +272,11 @@ exports.getMe = async (req, res) => {
 // ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
     const allowedFields = [
       'name', 'phoneNumber', 'alternatePhone', 'website', 'bio', 'address', 'preferences',
       // Restaurant
@@ -262,6 +299,30 @@ exports.updateProfile = async (req, res) => {
       }
     });
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // FIX: Validate organizationType based on user role
+    // ══════════════════════════════════════════════════════════════════════════
+    if (fieldsToUpdate.organizationType) {
+      if (user.role === 'ngo') {
+        // For NGOs, organizationType must always be 'ngo'
+        // If they're trying to set it to something else, ignore it
+        if (fieldsToUpdate.organizationType !== 'ngo') {
+          console.log(`⚠️ NGO tried to set organizationType to '${fieldsToUpdate.organizationType}', forcing to 'ngo'`);
+          fieldsToUpdate.organizationType = 'ngo';
+        }
+      } else if (user.role === 'restaurant') {
+        // For restaurants, validate against allowed types
+        if (!VALID_ORGANIZATION_TYPES.includes(fieldsToUpdate.organizationType)) {
+          delete fieldsToUpdate.organizationType;
+        }
+      }
+    }
+
+    // FIX: Validate ngoType if provided
+    if (fieldsToUpdate.ngoType && !VALID_NGO_TYPES.includes(fieldsToUpdate.ngoType)) {
+      delete fieldsToUpdate.ngoType;
+    }
+
     // Handle location update
     if (req.body.latitude && req.body.longitude) {
       const lat = parseFloat(req.body.latitude);
@@ -271,12 +332,12 @@ exports.updateProfile = async (req, res) => {
       }
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
+    const updatedUser = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
       new: true,
       runValidators: true
     });
 
-    res.status(200).json({ success: true, user: buildUserPayload(user) });
+    res.status(200).json({ success: true, user: buildUserPayload(updatedUser) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

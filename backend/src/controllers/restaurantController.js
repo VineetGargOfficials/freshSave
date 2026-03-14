@@ -1,5 +1,5 @@
-const RestaurantFoodListing = require('../models/RestaurantFoodListing');
-const FoodItem = require('../models/FoodItem');
+const RestaurantFoodListing = require('../models/Restaurants/RestaurantFoodListing');
+const FoodItem = require('../models/IndividualUsers/FoodItem');
 const User = require('../models/User');
 
 // ─────────────────────────────────────────────────────────────────────────────

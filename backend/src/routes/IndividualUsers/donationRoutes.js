@@ -9,8 +9,8 @@ const {
   deleteDonation,
   getMyDonations,
   getMyClaims
-} = require('../controllers/donationController');
-const { protect, authorize } = require('../middleware/auth');
+} = require('../../controllers/donationController');
+const { protect, authorize } = require('../../middleware/auth');
 
 const router = express.Router();
 

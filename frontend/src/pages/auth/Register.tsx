@@ -5,7 +5,7 @@ import {
   UserPlus, Mail, Lock, User, Phone, Building, Loader2,
   Eye, EyeOff, MapPin, Globe, ChevronRight, ChevronLeft,
   Utensils, Heart, CheckCircle2, FileText, Clock, Truck,
-  Thermometer, Users, Star, Hash, Calendar,
+  Thermometer, Users, Star, Hash, Calendar, LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -71,29 +70,98 @@ const DONATION_MODES = [
   { value: "both", label: "Both", desc: "Either way works" },
 ];
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FIX: Move Field component OUTSIDE the Register component
+// ══════════════════════════════════════════════════════════════════════════════
+interface FieldProps {
+  id: string;
+  label: string;
+  icon?: LucideIcon;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  [key: string]: any;
+}
+
+const Field = ({ id, label, icon: Icon, type = "text", placeholder, required = false, value, onChange, ...rest }: FieldProps) => (
+  <div className="space-y-2">
+    <Label htmlFor={id} className="flex items-center gap-2 text-sm font-medium">
+      {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      {label}{required && <span className="text-red-500">*</span>}
+    </Label>
+    <Input 
+      id={id} 
+      name={id} 
+      type={type} 
+      placeholder={placeholder}
+      value={value} 
+      onChange={onChange} 
+      {...rest} 
+    />
+  </div>
+);
+
 // ── Initial form state ────────────────────────────────────────────────────────
-const initialForm = {
-  // Common
+interface FormState {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  phoneNumber: string;
+  alternatePhone: string;
+  website: string;
+  bio: string;
+  role: string;
+  street: string;
+  area: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  organizationName: string;
+  organizationType: string;
+  fssaiLicense: string;
+  cuisineTypes: string[];
+  seatingCapacity: string;
+  dailySurplusCapacity: string;
+  donationMode: string;
+  isHalalCertified: boolean;
+  isVegetarianOnly: boolean;
+  openTime: string;
+  closeTime: string;
+  ngoRegistrationNumber: string;
+  ngoType: string;
+  beneficiaryTypes: string[];
+  dailyBeneficiaries: string;
+  totalBeneficiaries: string;
+  hasPickupVehicle: boolean;
+  pickupRadius: string;
+  hasRefrigeration: boolean;
+  storageCapacityKg: string;
+  preferredFoodTypes: string;
+  organizationDescription: string;
+  foundedYear: string;
+}
+
+const initialForm: FormState = {
   name: "", email: "", password: "", confirmPassword: "",
   phoneNumber: "", alternatePhone: "", website: "", bio: "",
   role: "user",
-  // Address
   street: "", area: "", city: "", state: "", zipCode: "", country: "India",
-  // Restaurant
   organizationName: "", organizationType: "",
-  fssaiLicense: "", cuisineTypes: [] as string[],
+  fssaiLicense: "", cuisineTypes: [],
   seatingCapacity: "", dailySurplusCapacity: "",
   donationMode: "pickup_only",
   isHalalCertified: false, isVegetarianOnly: false,
   openTime: "09:00", closeTime: "22:00",
-  // NGO
   ngoRegistrationNumber: "", ngoType: "",
-  beneficiaryTypes: [] as string[],
+  beneficiaryTypes: [],
   dailyBeneficiaries: "", totalBeneficiaries: "",
   hasPickupVehicle: false, pickupRadius: "",
   hasRefrigeration: false, storageCapacityKg: "",
   preferredFoodTypes: "",
-  // Common org
   organizationDescription: "", foundedYear: "",
 };
 
@@ -101,10 +169,10 @@ export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
 
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState<FormState>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState(1); // multi-step form
+  const [step, setStep] = useState(1);
 
   const isOrg = form.role === "restaurant" || form.role === "ngo";
   const totalSteps = form.role === "user" ? 1 : 3;
@@ -120,7 +188,7 @@ export default function Register() {
 
   const toggleListItem = (field: "cuisineTypes" | "beneficiaryTypes", val: string) => {
     setForm(p => {
-      const arr = p[field] as string[];
+      const arr = p[field];
       return { ...p, [field]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
     });
   };
@@ -175,7 +243,6 @@ export default function Register() {
         bio: form.bio || undefined,
       };
 
-      // Address
       if (form.city || form.street) {
         payload.address = {
           street: form.street,
@@ -200,9 +267,8 @@ export default function Register() {
           isVegetarianOnly: form.isVegetarianOnly,
           organizationDescription: form.organizationDescription || undefined,
           foundedYear: form.foundedYear ? parseInt(form.foundedYear) : undefined,
-          // Build simple operating hours from open/close time
           operatingHours: Object.fromEntries(
-            ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(d => [
+            ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(d => [
               d, { open: form.openTime, close: form.closeTime, isClosed: false }
             ])
           ),
@@ -212,7 +278,7 @@ export default function Register() {
       if (form.role === "ngo") {
         Object.assign(payload, {
           organizationName: form.organizationName,
-          organizationType: form.ngoType || undefined,
+          organizationType: "ngo",
           ngoRegistrationNumber: form.ngoRegistrationNumber || undefined,
           ngoType: form.ngoType || undefined,
           beneficiaryTypes: form.beneficiaryTypes.length ? form.beneficiaryTypes : undefined,
@@ -239,18 +305,6 @@ export default function Register() {
       setIsLoading(false);
     }
   };
-
-  // ── Shared input helper ────────────────────────────────────────────────────
-  const Field = ({ id, label, icon: Icon, type = "text", placeholder, required = false, ...rest }: any) => (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="flex items-center gap-2 text-sm font-medium">
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-        {label}{required && <span className="text-red-500">*</span>}
-      </Label>
-      <Input id={id} name={id} type={type} placeholder={placeholder}
-        value={(form as any)[id]} onChange={handleChange} {...rest} />
-    </div>
-  );
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -323,11 +377,36 @@ export default function Register() {
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field id="name" label="Full Name" icon={User} placeholder="John Doe" required />
-                    <Field id="phoneNumber" label="Phone Number" icon={Phone} placeholder="+91 9876543210" type="tel" />
+                    <Field 
+                      id="name" 
+                      label="Full Name" 
+                      icon={User} 
+                      placeholder="John Doe" 
+                      required 
+                      value={form.name}
+                      onChange={handleChange}
+                    />
+                    <Field 
+                      id="phoneNumber" 
+                      label="Phone Number" 
+                      icon={Phone} 
+                      placeholder="+91 9876543210" 
+                      type="tel"
+                      value={form.phoneNumber}
+                      onChange={handleChange}
+                    />
                   </div>
 
-                  <Field id="email" label="Email Address" icon={Mail} placeholder="you@example.com" type="email" required />
+                  <Field 
+                    id="email" 
+                    label="Email Address" 
+                    icon={Mail} 
+                    placeholder="you@example.com" 
+                    type="email" 
+                    required
+                    value={form.email}
+                    onChange={handleChange}
+                  />
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -336,8 +415,15 @@ export default function Register() {
                         Password <span className="text-red-500">*</span>
                       </Label>
                       <div className="relative">
-                        <Input id="password" name="password" type={showPassword ? "text" : "password"}
-                          placeholder="Min. 6 characters" value={form.password} onChange={handleChange} required />
+                        <Input 
+                          id="password" 
+                          name="password" 
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Min. 6 characters" 
+                          value={form.password} 
+                          onChange={handleChange} 
+                          required 
+                        />
                         <button type="button" onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -349,14 +435,27 @@ export default function Register() {
                         <Lock className="h-4 w-4 text-muted-foreground" />
                         Confirm Password <span className="text-red-500">*</span>
                       </Label>
-                      <Input id="confirmPassword" name="confirmPassword" type="password"
-                        placeholder="Re-enter password" value={form.confirmPassword} onChange={handleChange} required />
+                      <Input 
+                        id="confirmPassword" 
+                        name="confirmPassword" 
+                        type="password"
+                        placeholder="Re-enter password" 
+                        value={form.confirmPassword} 
+                        onChange={handleChange} 
+                        required 
+                      />
                     </div>
                   </div>
 
-                  {/* For individual users: that's it */}
                   {form.role === "user" && (
-                    <Field id="city" label="City" icon={MapPin} placeholder="Mumbai" />
+                    <Field 
+                      id="city" 
+                      label="City" 
+                      icon={MapPin} 
+                      placeholder="Mumbai"
+                      value={form.city}
+                      onChange={handleChange}
+                    />
                   )}
                 </motion.div>
               )}
@@ -370,15 +469,28 @@ export default function Register() {
                   </h2>
 
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field id="organizationName" label="Organization Name" icon={Building}
-                      placeholder={form.role === "restaurant" ? "Spice Garden Restaurant" : "Hope Foundation"} required />
+                    <Field 
+                      id="organizationName" 
+                      label="Organization Name" 
+                      icon={Building}
+                      placeholder={form.role === "restaurant" ? "Spice Garden Restaurant" : "Hope Foundation"} 
+                      required
+                      value={form.organizationName}
+                      onChange={handleChange}
+                    />
                     <div className="space-y-2">
                       <Label className="font-medium">
                         {form.role === "restaurant" ? "Business Type" : "Organization Type"} <span className="text-red-500">*</span>
                       </Label>
-                      <Select value={form.role === "restaurant" ? form.organizationType : form.ngoType}
-                        onValueChange={v => setForm(p => form.role === "restaurant"
-                          ? { ...p, organizationType: v } : { ...p, ngoType: v })}>
+                      <Select 
+                        value={form.role === "restaurant" ? form.organizationType : form.ngoType}
+                        onValueChange={v => {
+                          if (form.role === "restaurant") {
+                            setForm(p => ({ ...p, organizationType: v }));
+                          } else {
+                            setForm(p => ({ ...p, ngoType: v }));
+                          }
+                        }}>
                         <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                         <SelectContent>
                           {(form.role === "restaurant" ? RESTAURANT_TYPES : NGO_TYPES).map(t => (
@@ -394,29 +506,103 @@ export default function Register() {
                     <Label className="font-medium flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" /> Address
                     </Label>
-                    <Field id="street" label="Street / Building" placeholder="123, M.G. Road" />
+                    <Field 
+                      id="street" 
+                      label="Street / Building" 
+                      placeholder="123, M.G. Road"
+                      value={form.street}
+                      onChange={handleChange}
+                    />
                     <div className="grid sm:grid-cols-2 gap-4">
-                      <Field id="area" label="Area / Locality" placeholder="Koramangala" />
-                      <Field id="city" label="City" placeholder="Bangalore" required />
+                      <Field 
+                        id="area" 
+                        label="Area / Locality" 
+                        placeholder="Koramangala"
+                        value={form.area}
+                        onChange={handleChange}
+                      />
+                      <Field 
+                        id="city" 
+                        label="City" 
+                        placeholder="Bangalore" 
+                        required
+                        value={form.city}
+                        onChange={handleChange}
+                      />
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                      <Field id="state" label="State" placeholder="Karnataka" />
-                      <Field id="zipCode" label="PIN Code" placeholder="560034" />
-                      <Field id="country" label="Country" placeholder="India" />
+                      <Field 
+                        id="state" 
+                        label="State" 
+                        placeholder="Karnataka"
+                        value={form.state}
+                        onChange={handleChange}
+                      />
+                      <Field 
+                        id="zipCode" 
+                        label="PIN Code" 
+                        placeholder="560034"
+                        value={form.zipCode}
+                        onChange={handleChange}
+                      />
+                      <Field 
+                        id="country" 
+                        label="Country" 
+                        placeholder="India"
+                        value={form.country}
+                        onChange={handleChange}
+                      />
                     </div>
                   </div>
 
                   {/* Phone / Website */}
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field id="alternatePhone" label="Alternate Phone" icon={Phone} placeholder="+91 9876543210" />
-                    <Field id="website" label="Website" icon={Globe} placeholder="https://example.com" type="url" />
+                    <Field 
+                      id="alternatePhone" 
+                      label="Alternate Phone" 
+                      icon={Phone} 
+                      placeholder="+91 9876543210"
+                      value={form.alternatePhone}
+                      onChange={handleChange}
+                    />
+                    <Field 
+                      id="website" 
+                      label="Website" 
+                      icon={Globe} 
+                      placeholder="https://example.com" 
+                      type="url"
+                      value={form.website}
+                      onChange={handleChange}
+                    />
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field id="foundedYear" label="Year Established" icon={Calendar} placeholder="2015" type="number" />
+                    <Field 
+                      id="foundedYear" 
+                      label="Year Established" 
+                      icon={Calendar} 
+                      placeholder="2015" 
+                      type="number"
+                      value={form.foundedYear}
+                      onChange={handleChange}
+                    />
                     {form.role === "restaurant"
-                      ? <Field id="fssaiLicense" label="FSSAI License No." icon={FileText} placeholder="12345678901234" />
-                      : <Field id="ngoRegistrationNumber" label="NGO Reg. Number" icon={Hash} placeholder="NGO/2015/IND/0001" />
+                      ? <Field 
+                          id="fssaiLicense" 
+                          label="FSSAI License No." 
+                          icon={FileText} 
+                          placeholder="12345678901234"
+                          value={form.fssaiLicense}
+                          onChange={handleChange}
+                        />
+                      : <Field 
+                          id="ngoRegistrationNumber" 
+                          label="NGO Reg. Number" 
+                          icon={Hash} 
+                          placeholder="NGO/2015/IND/0001"
+                          value={form.ngoRegistrationNumber}
+                          onChange={handleChange}
+                        />
                     }
                   </div>
 
@@ -424,11 +610,16 @@ export default function Register() {
                     <Label className="flex items-center gap-2 font-medium">
                       <FileText className="h-4 w-4 text-muted-foreground" /> Brief Description
                     </Label>
-                    <Textarea id="organizationDescription" name="organizationDescription"
-                      value={form.organizationDescription} onChange={handleChange} rows={2}
+                    <Textarea 
+                      id="organizationDescription" 
+                      name="organizationDescription"
+                      value={form.organizationDescription} 
+                      onChange={handleChange} 
+                      rows={2}
                       placeholder={form.role === "restaurant"
                         ? "Tell donors about your restaurant and your surplus food..."
-                        : "Tell restaurants about your organization and the people you serve..."} />
+                        : "Tell restaurants about your organization and the people you serve..."} 
+                    />
                   </div>
                 </motion.div>
               )}
@@ -445,7 +636,6 @@ export default function Register() {
                         <Utensils className="h-5 w-5 text-orange-500" /> Food & Operations
                       </h2>
 
-                      {/* Cuisine types */}
                       <div className="space-y-2">
                         <Label className="font-medium">Cuisine Types</Label>
                         <div className="flex flex-wrap gap-2">
@@ -464,13 +654,26 @@ export default function Register() {
                       </div>
 
                       <div className="grid sm:grid-cols-2 gap-4">
-                        <Field id="seatingCapacity" label="Seating Capacity" icon={Users}
-                          placeholder="e.g. 80" type="number" />
-                        <Field id="dailySurplusCapacity" label="Daily Surplus (meals/kg)" icon={Utensils}
-                          placeholder="e.g. 50" type="number" />
+                        <Field 
+                          id="seatingCapacity" 
+                          label="Seating Capacity" 
+                          icon={Users}
+                          placeholder="e.g. 80" 
+                          type="number"
+                          value={form.seatingCapacity}
+                          onChange={handleChange}
+                        />
+                        <Field 
+                          id="dailySurplusCapacity" 
+                          label="Daily Surplus (meals/kg)" 
+                          icon={Utensils}
+                          placeholder="e.g. 50" 
+                          type="number"
+                          value={form.dailySurplusCapacity}
+                          onChange={handleChange}
+                        />
                       </div>
 
-                      {/* Operating hours */}
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2 font-medium">
                           <Clock className="h-4 w-4 text-muted-foreground" /> Operating Hours (general)
@@ -478,16 +681,25 @@ export default function Register() {
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Opens at</Label>
-                            <Input type="time" name="openTime" value={form.openTime} onChange={handleChange} />
+                            <Input 
+                              type="time" 
+                              name="openTime" 
+                              value={form.openTime} 
+                              onChange={handleChange} 
+                            />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Closes at</Label>
-                            <Input type="time" name="closeTime" value={form.closeTime} onChange={handleChange} />
+                            <Input 
+                              type="time" 
+                              name="closeTime" 
+                              value={form.closeTime} 
+                              onChange={handleChange} 
+                            />
                           </div>
                         </div>
                       </div>
 
-                      {/* Donation mode */}
                       <div className="space-y-2">
                         <Label className="font-medium">Donation Preference</Label>
                         <div className="grid sm:grid-cols-3 gap-3">
@@ -506,7 +718,6 @@ export default function Register() {
                         </div>
                       </div>
 
-                      {/* Certifications */}
                       <div className="space-y-2">
                         <Label className="font-medium">Dietary Certifications</Label>
                         <div className="grid sm:grid-cols-2 gap-3">
@@ -516,9 +727,13 @@ export default function Register() {
                           ].map(cert => (
                             <label key={cert.key}
                               className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer">
-                              <input type="checkbox" name={cert.key}
-                                checked={(form as any)[cert.key]} onChange={handleChange}
-                                className="rounded border-gray-300 text-orange-500 w-4 h-4" />
+                              <input 
+                                type="checkbox" 
+                                name={cert.key}
+                                checked={form[cert.key as keyof FormState] as boolean} 
+                                onChange={handleChange}
+                                className="rounded border-gray-300 text-orange-500 w-4 h-4" 
+                              />
                               <span className="text-sm font-medium">{cert.icon} {cert.label}</span>
                             </label>
                           ))}
@@ -534,7 +749,6 @@ export default function Register() {
                         <Heart className="h-5 w-5 text-rose-500" /> Beneficiaries & Capacity
                       </h2>
 
-                      {/* Who they serve */}
                       <div className="space-y-2">
                         <Label className="font-medium">Who Do You Serve?</Label>
                         <div className="flex flex-wrap gap-2">
@@ -553,58 +767,95 @@ export default function Register() {
                       </div>
 
                       <div className="grid sm:grid-cols-2 gap-4">
-                        <Field id="dailyBeneficiaries" label="Meals Served / Day" icon={Utensils}
-                          placeholder="e.g. 200" type="number" />
-                        <Field id="totalBeneficiaries" label="Total Beneficiaries" icon={Users}
-                          placeholder="e.g. 500" type="number" />
+                        <Field 
+                          id="dailyBeneficiaries" 
+                          label="Meals Served / Day" 
+                          icon={Utensils}
+                          placeholder="e.g. 200" 
+                          type="number"
+                          value={form.dailyBeneficiaries}
+                          onChange={handleChange}
+                        />
+                        <Field 
+                          id="totalBeneficiaries" 
+                          label="Total Beneficiaries" 
+                          icon={Users}
+                          placeholder="e.g. 500" 
+                          type="number"
+                          value={form.totalBeneficiaries}
+                          onChange={handleChange}
+                        />
                       </div>
 
-                      {/* Pickup / Logistics */}
                       <div className="space-y-3">
                         <Label className="font-medium flex items-center gap-2">
                           <Truck className="h-4 w-4 text-muted-foreground" /> Pickup Capability
                         </Label>
                         <div className="grid sm:grid-cols-2 gap-3">
                           <label className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer">
-                            <input type="checkbox" name="hasPickupVehicle"
-                              checked={form.hasPickupVehicle} onChange={handleChange}
-                              className="rounded border-gray-300 w-4 h-4" />
+                            <input 
+                              type="checkbox" 
+                              name="hasPickupVehicle"
+                              checked={form.hasPickupVehicle} 
+                              onChange={handleChange}
+                              className="rounded border-gray-300 w-4 h-4" 
+                            />
                             <div>
                               <div className="text-sm font-medium">🚐 We have a pickup vehicle</div>
                               <div className="text-xs text-muted-foreground">We can collect food ourselves</div>
                             </div>
                           </label>
-                          <Field id="pickupRadius" label="Pickup Radius (km)" icon={MapPin}
-                            placeholder="e.g. 10" type="number" />
+                          <Field 
+                            id="pickupRadius" 
+                            label="Pickup Radius (km)" 
+                            icon={MapPin}
+                            placeholder="e.g. 10" 
+                            type="number"
+                            value={form.pickupRadius}
+                            onChange={handleChange}
+                          />
                         </div>
                       </div>
 
-                      {/* Storage */}
                       <div className="space-y-3">
                         <Label className="font-medium flex items-center gap-2">
                           <Thermometer className="h-4 w-4 text-muted-foreground" /> Storage Capacity
                         </Label>
                         <div className="grid sm:grid-cols-2 gap-3">
                           <label className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer">
-                            <input type="checkbox" name="hasRefrigeration"
-                              checked={form.hasRefrigeration} onChange={handleChange}
-                              className="rounded border-gray-300 w-4 h-4" />
+                            <input 
+                              type="checkbox" 
+                              name="hasRefrigeration"
+                              checked={form.hasRefrigeration} 
+                              onChange={handleChange}
+                              className="rounded border-gray-300 w-4 h-4" 
+                            />
                             <div>
                               <div className="text-sm font-medium">❄️ Refrigeration Available</div>
                               <div className="text-xs text-muted-foreground">Can store perishables</div>
                             </div>
                           </label>
-                          <Field id="storageCapacityKg" label="Storage Capacity (kg)" icon={Star}
-                            placeholder="e.g. 100" type="number" />
+                          <Field 
+                            id="storageCapacityKg" 
+                            label="Storage Capacity (kg)" 
+                            icon={Star}
+                            placeholder="e.g. 100" 
+                            type="number"
+                            value={form.storageCapacityKg}
+                            onChange={handleChange}
+                          />
                         </div>
                       </div>
 
-                      {/* Preferred food types */}
                       <div className="space-y-2">
                         <Label className="font-medium">Preferred Food Types</Label>
-                        <Input id="preferredFoodTypes" name="preferredFoodTypes"
-                          value={form.preferredFoodTypes} onChange={handleChange}
-                          placeholder="e.g. Cooked meals, Vegetables, Dairy (comma-separated)" />
+                        <Input 
+                          id="preferredFoodTypes" 
+                          name="preferredFoodTypes"
+                          value={form.preferredFoodTypes} 
+                          onChange={handleChange}
+                          placeholder="e.g. Cooked meals, Vegetables, Dairy (comma-separated)" 
+                        />
                         <p className="text-xs text-muted-foreground">Separate with commas</p>
                       </div>
                     </>
@@ -645,8 +896,6 @@ export default function Register() {
               <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link>
             </p>
           </div>
-
-          
         </Card>
       </motion.div>
     </div>
