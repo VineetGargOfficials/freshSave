@@ -53,7 +53,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface NGO {
@@ -82,136 +82,10 @@ interface NGO {
   foundedYear?: number;
   website?: string;
   isVerified?: boolean;
+  emailVerified?: boolean;
   connectionStatus?: "none" | "pending" | "accepted" | "rejected";
+  distance?: number | null;
 }
-
-// ── Mock Data (Fallback) ─────────────────────────────────────────────────────────────
-const MOCK_NGOS: NGO[] = [
-  {
-    _id: "1",
-    name: "Ramesh Kumar",
-    email: "contact@hopefoundation.org",
-    phoneNumber: "+91 98765 43210",
-    organizationName: "Hope Foundation",
-    ngoType: "orphanage",
-    ngoRegistrationNumber: "NGO/2015/MH/001",
-    address: { city: "Mumbai", state: "Maharashtra", fullAddress: "123 Hope Street, Andheri West, Mumbai 400053" },
-    beneficiaryTypes: ["children", "homeless"],
-    dailyBeneficiaries: 150,
-    totalBeneficiaries: 200,
-    hasPickupVehicle: true,
-    pickupRadius: 15,
-    hasRefrigeration: true,
-    storageCapacityKg: 200,
-    preferredFoodTypes: ["Cooked meals", "Rice", "Vegetables"],
-    organizationDescription: "Hope Foundation has been serving orphaned and underprivileged children since 2015. We provide shelter, education, and nutritious meals to over 200 children.",
-    foundedYear: 2015,
-    website: "https://hopefoundation.org",
-    isVerified: true,
-    connectionStatus: "accepted",
-  },
-  {
-    _id: "2",
-    name: "Priya Sharma",
-    email: "info@communitykitchen.org",
-    phoneNumber: "+91 98765 12345",
-    organizationName: "Community Kitchen Mumbai",
-    ngoType: "community_kitchen",
-    address: { city: "Mumbai", state: "Maharashtra", fullAddress: "456 Service Road, Bandra, Mumbai" },
-    beneficiaryTypes: ["homeless", "elderly", "general_public"],
-    dailyBeneficiaries: 500,
-    totalBeneficiaries: 500,
-    hasPickupVehicle: true,
-    pickupRadius: 20,
-    hasRefrigeration: true,
-    storageCapacityKg: 500,
-    preferredFoodTypes: ["All types of food"],
-    organizationDescription: "We serve hot meals to homeless and underprivileged people across Mumbai. Our kitchen operates 365 days a year.",
-    foundedYear: 2018,
-    isVerified: true,
-    connectionStatus: "pending",
-  },
-  {
-    _id: "3",
-    name: "Suresh Patel",
-    email: "care@sunshineelders.org",
-    phoneNumber: "+91 98123 45678",
-    organizationName: "Sunshine Old Age Home",
-    ngoType: "old_age_home",
-    address: { city: "Pune", state: "Maharashtra", fullAddress: "789 Peace Colony, Kothrud, Pune" },
-    beneficiaryTypes: ["elderly"],
-    dailyBeneficiaries: 80,
-    totalBeneficiaries: 80,
-    hasPickupVehicle: false,
-    hasRefrigeration: true,
-    storageCapacityKg: 100,
-    preferredFoodTypes: ["Soft foods", "Fruits", "Dairy"],
-    organizationDescription: "Sunshine Old Age Home provides loving care to 80 senior citizens. We focus on their health and happiness.",
-    foundedYear: 2010,
-    isVerified: true,
-    connectionStatus: "none",
-  },
-  {
-    _id: "4",
-    name: "Anjali Desai",
-    email: "hello@feedingindia.org",
-    phoneNumber: "+91 99887 66554",
-    organizationName: "Feeding India Foundation",
-    ngoType: "food_bank",
-    address: { city: "Delhi", state: "Delhi", fullAddress: "101 Charity Lane, Connaught Place, New Delhi" },
-    beneficiaryTypes: ["children", "homeless", "general_public"],
-    dailyBeneficiaries: 1000,
-    totalBeneficiaries: 5000,
-    hasPickupVehicle: true,
-    pickupRadius: 30,
-    hasRefrigeration: true,
-    storageCapacityKg: 1000,
-    preferredFoodTypes: ["All types"],
-    organizationDescription: "India's largest food bank network. We rescue surplus food and distribute it to those in need.",
-    foundedYear: 2014,
-    website: "https://feedingindia.org",
-    isVerified: true,
-    connectionStatus: "none",
-  },
-  {
-    _id: "5",
-    name: "Mohammed Ali",
-    email: "contact@shelterHome.org",
-    organizationName: "Safe Shelter Home",
-    ngoType: "shelter",
-    address: { city: "Bangalore", state: "Karnataka" },
-    beneficiaryTypes: ["homeless", "refugees"],
-    dailyBeneficiaries: 120,
-    totalBeneficiaries: 150,
-    hasPickupVehicle: false,
-    hasRefrigeration: false,
-    organizationDescription: "Providing temporary shelter and meals to homeless individuals and refugees.",
-    foundedYear: 2019,
-    isVerified: false,
-    connectionStatus: "none",
-  },
-  {
-    _id: "6",
-    name: "Kavita Reddy",
-    email: "info@pawscare.org",
-    phoneNumber: "+91 98765 99999",
-    organizationName: "Paws & Care Animal Shelter",
-    ngoType: "animal_shelter",
-    address: { city: "Hyderabad", state: "Telangana", fullAddress: "Green Valley Road, Secunderabad" },
-    beneficiaryTypes: ["animals"],
-    dailyBeneficiaries: 200,
-    totalBeneficiaries: 300,
-    hasPickupVehicle: true,
-    pickupRadius: 25,
-    hasRefrigeration: true,
-    storageCapacityKg: 150,
-    preferredFoodTypes: ["Vegetable scraps", "Rice", "Bread"],
-    organizationDescription: "We rescue and rehabilitate stray animals. Surplus food helps feed our 300+ rescued animals.",
-    foundedYear: 2016,
-    isVerified: true,
-    connectionStatus: "rejected",
-  },
-];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const NGO_TYPES = [
@@ -260,6 +134,17 @@ export default function ConnectNGOs() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [searchRadius, setSearchRadius] = useState("10");
 
+  // Modal states
+  const [selectedNGO, setSelectedNGO] = useState<NGO | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectMessage, setConnectMessage] = useState("");
+  const [connecting, setConnecting] = useState(false);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"discover" | "connections">("discover");
+
+  // ── Fetch NGOs ──────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchNGOs();
   }, [user, searchRadius, ngoTypeFilter]);
@@ -267,18 +152,18 @@ export default function ConnectNGOs() {
   const fetchNGOs = async () => {
     setLoading(true);
     try {
-      const restaurantCity  = user?.address?.city  || '';
-      const restaurantState = user?.address?.state || '';
+      const restaurantCity = user?.address?.city || "";
+      const restaurantState = user?.address?.state || "";
 
       const params: any = {
         radius: searchRadius,
       };
 
-      if (restaurantCity)  params.city  = restaurantCity;
+      if (restaurantCity) params.city = restaurantCity;
       if (restaurantState) params.state = restaurantState;
-      if (ngoTypeFilter !== 'all') params.type = ngoTypeFilter;
+      if (ngoTypeFilter !== "all") params.type = ngoTypeFilter;
 
-      console.log('[ConnectNGO] Fetching with params:', params);
+      console.log("[ConnectNGO] Fetching with params:", params);
 
       const res = await axios.get(`${API_URL}/ngos/nearby`, { params });
       if (res.data.success) {
@@ -292,26 +177,22 @@ export default function ConnectNGOs() {
     }
   };
 
-  // Modal states
-  const [selectedNGO, setSelectedNGO] = useState<NGO | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showConnectModal, setShowConnectModal] = useState(false);
-  const [connectMessage, setConnectMessage] = useState("");
-  const [connecting, setConnecting] = useState(false);
-
-  // Tab state
-  const [activeTab, setActiveTab] = useState<"discover" | "connections">("discover");
-
-  // ── Filter NGOs ─────────────────────────────────────────────────────────────
+  // ── Filter NGOs (client-side on top of API results) ─────────────────────────
   const filteredNGOs = ngos.filter((ngo) => {
     const matchesSearch =
       ngo.organizationName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ngo.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ngo.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesType = ngoTypeFilter === "all" || ngo.ngoType === ngoTypeFilter;
-    const matchesCity = !cityFilter || ngo.address?.city?.toLowerCase().includes(cityFilter.toLowerCase());
-    const matchesVerified = !verifiedOnly || ngo.isVerified;
+    const matchesType =
+      ngoTypeFilter === "all" || ngo.ngoType === ngoTypeFilter;
+
+    const matchesCity =
+      !cityFilter ||
+      ngo.address?.city?.toLowerCase().includes(cityFilter.toLowerCase());
+
+    // FIX: "Verified Only" now checks emailVerified
+    const matchesVerified = !verifiedOnly || ngo.emailVerified === true;
 
     return matchesSearch && matchesType && matchesCity && matchesVerified;
   });
@@ -324,7 +205,8 @@ export default function ConnectNGOs() {
   // ── Stats ───────────────────────────────────────────────────────────────────
   const stats = {
     totalNGOs: ngos.length,
-    verifiedNGOs: ngos.filter((n) => n.isVerified).length,
+    // FIX: Count only email-verified NGOs
+    verifiedNGOs: ngos.filter((n) => n.emailVerified === true).length,
     connectedNGOs: connectedNGOs.length,
     pendingRequests: pendingNGOs.length,
   };
@@ -347,18 +229,22 @@ export default function ConnectNGOs() {
   const handleConnect = () => {
     if (!selectedNGO) return;
     setConnecting(true);
-    
-    // Simulate API call
+
     setTimeout(() => {
       setNgos((prev) =>
         prev.map((n) =>
-          ((n._id && n._id === selectedNGO?._id) || (n.id && n.id === selectedNGO?.id)) ? { ...n, connectionStatus: "pending" as const } : n
+          (n._id && n._id === selectedNGO?._id) ||
+          (n.id && n.id === selectedNGO?.id)
+            ? { ...n, connectionStatus: "pending" as const }
+            : n
         )
       );
       setConnecting(false);
       setShowConnectModal(false);
       setConnectMessage("");
-      toast.success(`Connection request sent to ${selectedNGO.organizationName}!`);
+      toast.success(
+        `Connection request sent to ${selectedNGO.organizationName}!`
+      );
     }, 1500);
   };
 
@@ -371,14 +257,20 @@ export default function ConnectNGOs() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* HEADER */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/restaurant")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/restaurant")}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -391,13 +283,22 @@ export default function ConnectNGOs() {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          <RefreshCw
+            className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+          />
           Refresh
         </Button>
       </motion.div>
 
-      {/* Stats Cards */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* STATS CARDS */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -405,10 +306,34 @@ export default function ConnectNGOs() {
         className="grid grid-cols-2 lg:grid-cols-4 gap-4"
       >
         {[
-          { label: "Total NGOs", value: stats.totalNGOs, icon: Building2, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { label: "Verified", value: stats.verifiedNGOs, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
-          { label: "Connected", value: stats.connectedNGOs, icon: UserCheck, color: "text-rose-500", bg: "bg-rose-500/10" },
-          { label: "Pending", value: stats.pendingRequests, icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10" },
+          {
+            label: "Total NGOs",
+            value: stats.totalNGOs,
+            icon: Building2,
+            color: "text-blue-500",
+            bg: "bg-blue-500/10",
+          },
+          {
+            label: "Email Verified",
+            value: stats.verifiedNGOs,
+            icon: CheckCircle2,
+            color: "text-green-500",
+            bg: "bg-green-500/10",
+          },
+          {
+            label: "Connected",
+            value: stats.connectedNGOs,
+            icon: UserCheck,
+            color: "text-rose-500",
+            bg: "bg-rose-500/10",
+          },
+          {
+            label: "Pending",
+            value: stats.pendingRequests,
+            icon: Clock,
+            color: "text-orange-500",
+            bg: "bg-orange-500/10",
+          },
         ].map((stat, index) => (
           <motion.div
             key={stat.label}
@@ -422,7 +347,9 @@ export default function ConnectNGOs() {
                   <stat.icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {stat.value}
+                  </p>
                   <p className="text-xs text-muted-foreground">{stat.label}</p>
                 </div>
               </div>
@@ -431,7 +358,9 @@ export default function ConnectNGOs() {
         ))}
       </motion.div>
 
-      {/* Tabs */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* TABS */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -441,7 +370,9 @@ export default function ConnectNGOs() {
         <Button
           variant={activeTab === "discover" ? "default" : "outline"}
           onClick={() => setActiveTab("discover")}
-          className={activeTab === "discover" ? "bg-rose-500 hover:bg-rose-600" : ""}
+          className={
+            activeTab === "discover" ? "bg-rose-500 hover:bg-rose-600" : ""
+          }
         >
           <Search className="h-4 w-4 mr-2" />
           Discover NGOs
@@ -449,12 +380,16 @@ export default function ConnectNGOs() {
         <Button
           variant={activeTab === "connections" ? "default" : "outline"}
           onClick={() => setActiveTab("connections")}
-          className={activeTab === "connections" ? "bg-rose-500 hover:bg-rose-600" : ""}
+          className={
+            activeTab === "connections" ? "bg-rose-500 hover:bg-rose-600" : ""
+          }
         >
           <Users className="h-4 w-4 mr-2" />
           My Connections
           {stats.pendingRequests > 0 && (
-            <Badge className="ml-2 bg-orange-500 text-white">{stats.pendingRequests}</Badge>
+            <Badge className="ml-2 bg-orange-500 text-white">
+              {stats.pendingRequests}
+            </Badge>
           )}
         </Button>
       </motion.div>
@@ -485,7 +420,10 @@ export default function ConnectNGOs() {
 
                 {/* Filters */}
                 <div className="flex flex-wrap gap-3">
-                  <Select value={ngoTypeFilter} onValueChange={setNgoTypeFilter}>
+                  <Select
+                    value={ngoTypeFilter}
+                    onValueChange={setNgoTypeFilter}
+                  >
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="NGO Type" />
                     </SelectTrigger>
@@ -498,7 +436,10 @@ export default function ConnectNGOs() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={searchRadius} onValueChange={setSearchRadius}>
+                  <Select
+                    value={searchRadius}
+                    onValueChange={setSearchRadius}
+                  >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Radius" />
                     </SelectTrigger>
@@ -516,11 +457,14 @@ export default function ConnectNGOs() {
                     onChange={(e) => setCityFilter(e.target.value)}
                   />
 
+                  {/* FIX: Verified Only now filters by emailVerified */}
                   <Button
                     variant={verifiedOnly ? "default" : "outline"}
                     size="sm"
                     onClick={() => setVerifiedOnly(!verifiedOnly)}
-                    className={verifiedOnly ? "bg-green-500 hover:bg-green-600" : ""}
+                    className={
+                      verifiedOnly ? "bg-green-500 hover:bg-green-600" : ""
+                    }
                   >
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Verified Only
@@ -533,18 +477,42 @@ export default function ConnectNGOs() {
                     disabled={loading}
                     className="hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
                   >
-                    <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`}
+                    />
                     Refresh Results
                   </Button>
 
-                  {(user?.address?.city || user?.address?.state) && (
+                  {/* {(user?.address?.city || user?.address?.state) && (
                     <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 text-xs font-medium ml-auto">
                       <MapPin className="h-3 w-3" />
-                      Searching from: {[user?.address?.city, user?.address?.state].filter(Boolean).join(', ')}
+                      Searching from:{" "}
+                      {[user?.address?.city, user?.address?.state]
+                        .filter(Boolean)
+                        .join(", ")}
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
+
+              {/* Active filters summary */}
+              {verifiedOnly && (
+                <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Active filters:</span>
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-green-500/10 text-green-600 border-green-500/20 cursor-pointer"
+                    onClick={() => setVerifiedOnly(false)}
+                  >
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Email Verified Only
+                    <X className="h-3 w-3 ml-1" />
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Showing {filteredNGOs.length} of {ngos.length} NGOs
+                  </span>
+                </div>
+              )}
             </Card>
           </motion.div>
 
@@ -557,17 +525,38 @@ export default function ConnectNGOs() {
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
-                <span className="ml-3 text-muted-foreground">Loading NGOs...</span>
+                <span className="ml-3 text-muted-foreground">
+                  Loading NGOs...
+                </span>
               </div>
             ) : filteredNGOs.length === 0 ? (
               <Card className="glass-card p-12 text-center">
                 <Building2 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No NGOs Found</h3>
-                <p className="text-muted-foreground mb-4">
-                  Try adjusting your search or filters
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  No NGOs Found
+                </h3>
+                <p className="text-muted-foreground mb-2">
+                  {verifiedOnly
+                    ? "No email-verified NGOs match your current filters."
+                    : "Try adjusting your search or filters."}
                 </p>
+                {verifiedOnly && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    There are{" "}
+                    <span className="font-semibold text-foreground">
+                      {ngos.length - stats.verifiedNGOs}
+                    </span>{" "}
+                    unverified NGOs that are hidden.{" "}
+                    <button
+                      onClick={() => setVerifiedOnly(false)}
+                      className="text-primary hover:underline"
+                    >
+                      Show all NGOs
+                    </button>
+                  </p>
+                )}
                 <Button variant="outline" onClick={clearFilters}>
-                  Clear Filters
+                  Clear All Filters
                 </Button>
               </Card>
             ) : (
@@ -592,10 +581,15 @@ export default function ConnectNGOs() {
                               <h3 className="font-semibold text-foreground truncate">
                                 {ngo.organizationName}
                               </h3>
-                              {ngo.isVerified && (
+                              {ngo.emailVerified ? (
                                 <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Verified
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Unverified
                                 </Badge>
                               )}
                             </div>
@@ -607,6 +601,11 @@ export default function ConnectNGOs() {
                                 <MapPin className="h-3 w-3" />
                                 {ngo.address.city}
                                 {ngo.address.state && `, ${ngo.address.state}`}
+                                {ngo.distance != null && (
+                                  <span className="ml-1 text-rose-500 font-medium">
+                                    • {ngo.distance} km away
+                                  </span>
+                                )}
                               </p>
                             )}
                           </div>
@@ -621,49 +620,73 @@ export default function ConnectNGOs() {
 
                         {/* Quick Stats */}
                         <div className="grid grid-cols-2 gap-2 mb-4">
-                          {ngo.dailyBeneficiaries && (
+                          {ngo.dailyBeneficiaries != null && (
                             <div className="p-2 rounded-lg bg-muted/30 text-center">
-                              <p className="text-lg font-bold text-foreground">{ngo.dailyBeneficiaries}</p>
-                              <p className="text-xs text-muted-foreground">Meals/Day</p>
+                              <p className="text-lg font-bold text-foreground">
+                                {ngo.dailyBeneficiaries}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Meals/Day
+                              </p>
                             </div>
                           )}
-                          {ngo.totalBeneficiaries && (
+                          {ngo.totalBeneficiaries != null && (
                             <div className="p-2 rounded-lg bg-muted/30 text-center">
-                              <p className="text-lg font-bold text-foreground">{ngo.totalBeneficiaries}</p>
-                              <p className="text-xs text-muted-foreground">Beneficiaries</p>
+                              <p className="text-lg font-bold text-foreground">
+                                {ngo.totalBeneficiaries}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Beneficiaries
+                              </p>
                             </div>
                           )}
                         </div>
 
                         {/* Beneficiary Types */}
-                        {ngo.beneficiaryTypes && ngo.beneficiaryTypes.length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-xs text-muted-foreground mb-2">Serves:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {ngo.beneficiaryTypes.slice(0, 4).map((type) => (
-                                <Badge key={type} variant="outline" className="text-xs">
-                                  {BENEFICIARY_ICONS[type] || "📦"} {type.replace(/_/g, " ")}
-                                </Badge>
-                              ))}
+                        {ngo.beneficiaryTypes &&
+                          ngo.beneficiaryTypes.length > 0 && (
+                            <div className="mb-4">
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Serves:
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {ngo.beneficiaryTypes
+                                  .slice(0, 4)
+                                  .map((type) => (
+                                    <Badge
+                                      key={type}
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {BENEFICIARY_ICONS[type] || "📦"}{" "}
+                                      {type.replace(/_/g, " ")}
+                                    </Badge>
+                                  ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {/* Capabilities */}
                         <div className="flex flex-wrap gap-2 mb-4">
                           {ngo.hasPickupVehicle && (
-                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20"
+                            >
                               <Truck className="h-3 w-3 mr-1" />
                               Has Vehicle
                             </Badge>
                           )}
                           {ngo.hasRefrigeration && (
-                            <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+                            >
                               <Thermometer className="h-3 w-3 mr-1" />
                               Refrigeration
                             </Badge>
                           )}
-                          {ngo.pickupRadius && (
+                          {ngo.pickupRadius != null && (
                             <Badge variant="outline" className="text-xs">
                               <MapPin className="h-3 w-3 mr-1" />
                               {ngo.pickupRadius} km
@@ -687,22 +710,54 @@ export default function ConnectNGOs() {
                           </Button>
 
                           {ngo.connectionStatus === "accepted" ? (
-                            <Button size="sm" className="flex-1 bg-green-500 hover:bg-green-600" disabled>
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-green-500 hover:bg-green-600"
+                              disabled
+                            >
                               <CheckCircle2 className="h-4 w-4 mr-1" />
                               Connected
                             </Button>
                           ) : ngo.connectionStatus === "pending" ? (
-                            <Button size="sm" variant="outline" className="flex-1 text-orange-500 border-orange-500/30" disabled>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 text-orange-500 border-orange-500/30"
+                              disabled
+                            >
                               <Clock className="h-4 w-4 mr-1" />
                               Pending
                             </Button>
                           ) : ngo.connectionStatus === "rejected" ? (
-                            <Button size="sm" variant="outline" className="flex-1 text-red-500 border-red-500/30" disabled>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 text-red-500 border-red-500/30"
+                              disabled
+                            >
                               <X className="h-4 w-4 mr-1" />
                               Declined
                             </Button>
+                          ) : !ngo.emailVerified ? (
+                            <div
+                              className="flex-1"
+                              title="This NGO's email is not verified. They must verify their email before you can connect."
+                            >
+                              <Button
+                                size="sm"
+                                className="w-full bg-gray-400 cursor-not-allowed opacity-60"
+                                disabled
+                              >
+                                <AlertCircle className="h-4 w-4 mr-1" />
+                                Not Verified
+                              </Button>
+                            </div>
                           ) : (
-                            <Button size="sm" className="flex-1 bg-rose-500 hover:bg-rose-600" onClick={() => openConnectModal(ngo)}>
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-rose-500 hover:bg-rose-600"
+                              onClick={() => openConnectModal(ngo)}
+                            >
                               <Heart className="h-4 w-4 mr-1" />
                               Connect
                             </Button>
@@ -728,14 +783,21 @@ export default function ConnectNGOs() {
           transition={{ delay: 0.2 }}
           className="space-y-6"
         >
-          {connectedNGOs.length === 0 && pendingNGOs.length === 0 && rejectedNGOs.length === 0 ? (
+          {connectedNGOs.length === 0 &&
+          pendingNGOs.length === 0 &&
+          rejectedNGOs.length === 0 ? (
             <Card className="glass-card p-12 text-center">
               <Users className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No Connections Yet</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                No Connections Yet
+              </h3>
               <p className="text-muted-foreground mb-4">
                 Start connecting with NGOs to donate your surplus food
               </p>
-              <Button onClick={() => setActiveTab("discover")} className="bg-rose-500 hover:bg-rose-600">
+              <Button
+                onClick={() => setActiveTab("discover")}
+                className="bg-rose-500 hover:bg-rose-600"
+              >
                 <Search className="h-4 w-4 mr-2" />
                 Discover NGOs
               </Button>
@@ -751,13 +813,18 @@ export default function ConnectNGOs() {
                   </h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     {connectedNGOs.map((ngo) => (
-                      <Card key={ngo._id || ngo.id} className="glass-card p-4 border-green-500/20">
+                      <Card
+                        key={ngo._id || ngo.id}
+                        className="glass-card p-4 border-green-500/20"
+                      >
                         <div className="flex items-center gap-4">
                           <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center text-xl">
                             {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">{ngo.organizationName}</h4>
+                            <h4 className="font-semibold text-foreground truncate">
+                              {ngo.organizationName}
+                            </h4>
                             <p className="text-sm text-muted-foreground">
                               {ngo.address?.city || "Location not specified"}
                             </p>
@@ -776,7 +843,11 @@ export default function ConnectNGOs() {
                                 <Mail className="h-4 w-4" />
                               </a>
                             </Button>
-                            <Button variant="outline" size="icon" onClick={() => openDetailsModal(ngo)}>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openDetailsModal(ngo)}
+                            >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
                           </div>
@@ -796,17 +867,24 @@ export default function ConnectNGOs() {
                   </h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     {pendingNGOs.map((ngo) => (
-                      <Card key={ngo._id || ngo.id} className="glass-card p-4 border-orange-500/20">
+                      <Card
+                        key={ngo._id || ngo.id}
+                        className="glass-card p-4 border-orange-500/20"
+                      >
                         <div className="flex items-center gap-4">
                           <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-xl">
                             {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">{ngo.organizationName}</h4>
+                            <h4 className="font-semibold text-foreground truncate">
+                              {ngo.organizationName}
+                            </h4>
                             <p className="text-sm text-muted-foreground">
                               {ngo.address?.city || "Location not specified"}
                             </p>
-                            <p className="text-xs text-orange-600">Awaiting response</p>
+                            <p className="text-xs text-orange-600">
+                              Awaiting response
+                            </p>
                           </div>
                           <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">
                             <Clock className="h-3 w-3 mr-1" />
@@ -828,18 +906,26 @@ export default function ConnectNGOs() {
                   </h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     {rejectedNGOs.map((ngo) => (
-                      <Card key={ngo._id || ngo.id} className="glass-card p-4 border-red-500/20 opacity-60">
+                      <Card
+                        key={ngo._id || ngo.id}
+                        className="glass-card p-4 border-red-500/20 opacity-60"
+                      >
                         <div className="flex items-center gap-4">
                           <div className="h-12 w-12 rounded-xl bg-red-500/10 flex items-center justify-center text-xl">
                             {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">{ngo.organizationName}</h4>
+                            <h4 className="font-semibold text-foreground truncate">
+                              {ngo.organizationName}
+                            </h4>
                             <p className="text-sm text-muted-foreground">
                               {ngo.address?.city || "Location not specified"}
                             </p>
                           </div>
-                          <Badge variant="outline" className="text-red-500 border-red-500/30">
+                          <Badge
+                            variant="outline"
+                            className="text-red-500 border-red-500/30"
+                          >
                             Declined
                           </Badge>
                         </div>
@@ -868,33 +954,61 @@ export default function ConnectNGOs() {
                   <div>
                     <DialogTitle className="text-xl flex items-center gap-2">
                       {selectedNGO.organizationName}
-                      {selectedNGO.isVerified && (
+                      {selectedNGO.emailVerified ? (
                         <Badge className="bg-green-500/10 text-green-600">
                           <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Verified
+                          Email Verified
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-orange-500/10 text-orange-500">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Unverified
                         </Badge>
                       )}
                     </DialogTitle>
                     <DialogDescription className="capitalize">
                       {selectedNGO.ngoType?.replace(/_/g, " ")}
-                      {selectedNGO.foundedYear && ` • Est. ${selectedNGO.foundedYear}`}
+                      {selectedNGO.foundedYear &&
+                        ` • Est. ${selectedNGO.foundedYear}`}
+                      {selectedNGO.distance != null &&
+                        ` • ${selectedNGO.distance} km away`}
                     </DialogDescription>
                   </div>
                 </div>
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
+                {/* Unverified Warning */}
+                {!selectedNGO.emailVerified && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                        Email Not Verified
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This NGO hasn't verified their email yet. You won't be able to
+                        send a connection request until they verify.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
                 {selectedNGO.organizationDescription && (
                   <div>
                     <h4 className="font-semibold text-foreground mb-2">About</h4>
-                    <p className="text-muted-foreground">{selectedNGO.organizationDescription}</p>
+                    <p className="text-muted-foreground">
+                      {selectedNGO.organizationDescription}
+                    </p>
                   </div>
                 )}
 
                 {/* Contact Info */}
                 <div>
-                  <h4 className="font-semibold text-foreground mb-3">Contact Information</h4>
+                  <h4 className="font-semibold text-foreground mb-3">
+                    Contact Information
+                  </h4>
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                       <Mail className="h-4 w-4 text-muted-foreground" />
@@ -903,14 +1017,20 @@ export default function ConnectNGOs() {
                     {selectedNGO.phoneNumber && (
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{selectedNGO.phoneNumber}</span>
+                        <span className="text-sm">
+                          {selectedNGO.phoneNumber}
+                        </span>
                       </div>
                     )}
                     {selectedNGO.website && (
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                         <Globe className="h-4 w-4 text-muted-foreground" />
-                        <a href={selectedNGO.website} target="_blank" rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline truncate">
+                        <a
+                          href={selectedNGO.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:underline truncate"
+                        >
                           {selectedNGO.website}
                         </a>
                       </div>
@@ -918,7 +1038,9 @@ export default function ConnectNGOs() {
                     {selectedNGO.address?.fullAddress && (
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 sm:col-span-2">
                         <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm">{selectedNGO.address.fullAddress}</span>
+                        <span className="text-sm">
+                          {selectedNGO.address.fullAddress}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -926,52 +1048,78 @@ export default function ConnectNGOs() {
 
                 {/* Stats */}
                 <div>
-                  <h4 className="font-semibold text-foreground mb-3">Impact & Capacity</h4>
+                  <h4 className="font-semibold text-foreground mb-3">
+                    Impact & Capacity
+                  </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {selectedNGO.dailyBeneficiaries && (
+                    {selectedNGO.dailyBeneficiaries != null && (
                       <div className="p-3 rounded-lg bg-muted/30 text-center">
-                        <p className="text-xl font-bold text-foreground">{selectedNGO.dailyBeneficiaries}</p>
-                        <p className="text-xs text-muted-foreground">Meals/Day</p>
+                        <p className="text-xl font-bold text-foreground">
+                          {selectedNGO.dailyBeneficiaries}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Meals/Day
+                        </p>
                       </div>
                     )}
-                    {selectedNGO.totalBeneficiaries && (
+                    {selectedNGO.totalBeneficiaries != null && (
                       <div className="p-3 rounded-lg bg-muted/30 text-center">
-                        <p className="text-xl font-bold text-foreground">{selectedNGO.totalBeneficiaries}</p>
-                        <p className="text-xs text-muted-foreground">Beneficiaries</p>
+                        <p className="text-xl font-bold text-foreground">
+                          {selectedNGO.totalBeneficiaries}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Beneficiaries
+                        </p>
                       </div>
                     )}
-                    {selectedNGO.storageCapacityKg && (
+                    {selectedNGO.storageCapacityKg != null && (
                       <div className="p-3 rounded-lg bg-muted/30 text-center">
-                        <p className="text-xl font-bold text-foreground">{selectedNGO.storageCapacityKg} kg</p>
+                        <p className="text-xl font-bold text-foreground">
+                          {selectedNGO.storageCapacityKg} kg
+                        </p>
                         <p className="text-xs text-muted-foreground">Storage</p>
                       </div>
                     )}
-                    {selectedNGO.pickupRadius && (
+                    {selectedNGO.pickupRadius != null && (
                       <div className="p-3 rounded-lg bg-muted/30 text-center">
-                        <p className="text-xl font-bold text-foreground">{selectedNGO.pickupRadius} km</p>
-                        <p className="text-xs text-muted-foreground">Pickup Radius</p>
+                        <p className="text-xl font-bold text-foreground">
+                          {selectedNGO.pickupRadius} km
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Pickup Radius
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Beneficiaries */}
-                {selectedNGO.beneficiaryTypes && selectedNGO.beneficiaryTypes.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-3">Who They Serve</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedNGO.beneficiaryTypes.map((type) => (
-                        <Badge key={type} variant="outline" className="py-1.5">
-                          {BENEFICIARY_ICONS[type] || "📦"} {type.replace(/_/g, " ")}
-                        </Badge>
-                      ))}
+                {selectedNGO.beneficiaryTypes &&
+                  selectedNGO.beneficiaryTypes.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-foreground mb-3">
+                        Who They Serve
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedNGO.beneficiaryTypes.map((type) => (
+                          <Badge
+                            key={type}
+                            variant="outline"
+                            className="py-1.5"
+                          >
+                            {BENEFICIARY_ICONS[type] || "📦"}{" "}
+                            {type.replace(/_/g, " ")}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Capabilities */}
                 <div>
-                  <h4 className="font-semibold text-foreground mb-3">Capabilities</h4>
+                  <h4 className="font-semibold text-foreground mb-3">
+                    Capabilities
+                  </h4>
                   <div className="flex flex-wrap gap-2">
                     {selectedNGO.hasPickupVehicle && (
                       <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 py-1.5">
@@ -985,43 +1133,58 @@ export default function ConnectNGOs() {
                         Has Refrigeration
                       </Badge>
                     )}
-                    {!selectedNGO.hasPickupVehicle && !selectedNGO.hasRefrigeration && (
-                      <p className="text-sm text-muted-foreground">No special capabilities listed</p>
-                    )}
+                    {!selectedNGO.hasPickupVehicle &&
+                      !selectedNGO.hasRefrigeration && (
+                        <p className="text-sm text-muted-foreground">
+                          No special capabilities listed
+                        </p>
+                      )}
                   </div>
                 </div>
 
                 {/* Preferred Food */}
-                {selectedNGO.preferredFoodTypes && selectedNGO.preferredFoodTypes.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-3">Preferred Food Types</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedNGO.preferredFoodTypes.map((type, index) => (
-                        <Badge key={index} variant="outline" className="py-1.5">
-                          {type}
-                        </Badge>
-                      ))}
+                {selectedNGO.preferredFoodTypes &&
+                  selectedNGO.preferredFoodTypes.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-foreground mb-3">
+                        Preferred Food Types
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedNGO.preferredFoodTypes.map((type, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="py-1.5"
+                          >
+                            {type}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
 
               <DialogFooter className="mt-6">
-                <Button variant="outline" onClick={() => setShowDetailsModal(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDetailsModal(false)}
+                >
                   Close
                 </Button>
-                {selectedNGO.connectionStatus === "none" && (
-                  <Button
-                    className="bg-rose-500 hover:bg-rose-600"
-                    onClick={() => {
-                      setShowDetailsModal(false);
-                      openConnectModal(selectedNGO);
-                    }}
-                  >
-                    <Heart className="h-4 w-4 mr-2" />
-                    Connect
-                  </Button>
-                )}
+                {selectedNGO.connectionStatus !== "accepted" &&
+                  selectedNGO.connectionStatus !== "pending" &&
+                  selectedNGO.emailVerified && (
+                    <Button
+                      className="bg-rose-500 hover:bg-rose-600"
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        openConnectModal(selectedNGO);
+                      }}
+                    >
+                      <Heart className="h-4 w-4 mr-2" />
+                      Connect
+                    </Button>
+                  )}
               </DialogFooter>
             </>
           )}
@@ -1039,7 +1202,8 @@ export default function ConnectNGOs() {
               Connect with {selectedNGO?.organizationName}
             </DialogTitle>
             <DialogDescription>
-              Send a connection request to partner with this NGO for food donations.
+              Send a connection request to partner with this NGO for food
+              donations.
             </DialogDescription>
           </DialogHeader>
 
@@ -1051,11 +1215,19 @@ export default function ConnectNGOs() {
                   {NGO_TYPE_ICONS[selectedNGO.ngoType] || "🤝"}
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">{selectedNGO.organizationName}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedNGO.organizationName}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {selectedNGO.address?.city || "Location not specified"}
                   </p>
                 </div>
+                {selectedNGO.emailVerified && (
+                  <Badge className="ml-auto bg-green-500/10 text-green-600">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Verified
+                  </Badge>
+                )}
               </div>
             )}
 
@@ -1073,7 +1245,8 @@ export default function ConnectNGOs() {
                 rows={4}
               />
               <p className="text-xs text-muted-foreground">
-                A good introduction helps NGOs understand your donation capacity.
+                A good introduction helps NGOs understand your donation
+                capacity.
               </p>
             </div>
 
@@ -1083,15 +1256,23 @@ export default function ConnectNGOs() {
                 Your request will include:
               </p>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Restaurant name: {user?.organizationName || user?.name}</li>
+                <li>
+                  • Restaurant name: {user?.organizationName || user?.name}
+                </li>
                 <li>• Contact email: {user?.email}</li>
                 {user?.phoneNumber && <li>• Phone: {user?.phoneNumber}</li>}
+                {user?.address?.city && (
+                  <li>• Location: {user?.address?.city}</li>
+                )}
               </ul>
             </div>
           </div>
 
           <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => setShowConnectModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConnectModal(false)}
+            >
               Cancel
             </Button>
             <Button
