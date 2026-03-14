@@ -1,155 +1,212 @@
 // src/pages/restaurants/RestaurantDashboard.tsx
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import axios from "axios";
 import {
   TrendingUp,
   Utensils,
   Users,
   Clock,
   ArrowRight,
-  Calendar,
   Bell,
   Plus,
-  MapPin,
   Package,
   CheckCircle2,
   ArrowUpRight,
   Leaf,
-  Award,
   Target,
+  Loader2,
+  RefreshCw,
+  ToggleRight,
+  ToggleLeft,
+  Tag,
+  DollarSign,
+  AlertCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
-const stats = [
-  { label: "Food Listed", value: "24", change: "+8", icon: Utensils, color: "text-orange-500", bgColor: "bg-orange-500/10" },
-  { label: "NGOs Connected", value: "8", change: "+2", icon: Users, color: "text-blue-500", bgColor: "bg-blue-500/10" },
-  { label: "Meals Donated", value: "892", change: "+156", icon: TrendingUp, color: "text-green-500", bgColor: "bg-green-500/10" },
-  { label: "Pending Pickups", value: "3", change: "Today", icon: Clock, color: "text-purple-500", bgColor: "bg-purple-500/10" },
-];
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-const activeListings = [
-  {
-    id: 1,
-    name: "Dal Makhani with Rice",
-    quantity: "30 portions",
-    expiryTime: "5 hours",
-    status: "available",
-    claims: 2,
-    posted: "30 mins ago",
-  },
-  {
-    id: 2,
-    name: "Fresh Bread Loaves",
-    quantity: "40 pieces",
-    expiryTime: "8 hours",
-    status: "available",
-    claims: 3,
-    posted: "1 hour ago",
-  },
-  {
-    id: 3,
-    name: "Vegetable Biryani",
-    quantity: "25 portions",
-    expiryTime: "3 hours",
-    status: "claimed",
-    claims: 1,
-    posted: "2 hours ago",
-  },
-];
+interface Listing {
+  _id: string;
+  name: string;
+  category: string;
+  listingType: string;
+  quantityAvailable: number;
+  unit: string;
+  price: number;
+  discountedPrice?: number;
+  expiryDate?: string;
+  daysUntilExpiry?: number | null;
+  status: string;
+  isAvailable: boolean;
+  totalReservations: number;
+  createdAt: string;
+}
 
-const pickupRequests = [
-  {
-    id: 1,
-    ngoName: "Hope Foundation",
-    ngoImage: "🏠",
-    foodItem: "Dal Makhani with Rice",
-    pickupTime: "Today, 6:00 PM",
-    status: "pending",
-    distance: "2.5 km",
-    requestedAt: "15 mins ago",
-  },
-  {
-    id: 2,
-    ngoName: "Community Kitchen",
-    ngoImage: "🍳",
-    foodItem: "Fresh Bread Loaves",
-    pickupTime: "Today, 7:30 PM",
-    status: "confirmed",
-    distance: "1.8 km",
-    requestedAt: "45 mins ago",
-  },
-  {
-    id: 3,
-    ngoName: "Care Center",
-    ngoImage: "💚",
-    foodItem: "Vegetable Biryani",
-    pickupTime: "Tomorrow, 9:00 AM",
-    status: "pending",
-    distance: "3.2 km",
-    requestedAt: "1 hour ago",
-  },
-];
+interface Stats {
+  total: number;
+  active: number;
+  soldOut: number;
+  expired: number;
+  removed: number;
+  totalReservations: number;
+  byListingType: Record<string, number>;
+  byCategory: Record<string, number>;
+}
 
-const recentActivity = [
-  {
-    id: 1,
-    action: "Food Picked Up",
-    ngo: "Hope Foundation",
-    food: "Mixed Fruit Salad",
-    time: "2 hours ago",
-    icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
-  },
-  {
-    id: 2,
-    action: "New Request",
-    ngo: "Care Center",
-    food: "Vegetable Biryani",
-    time: "1 hour ago",
-    icon: <Bell className="h-4 w-4 text-blue-500" />,
-  },
-  {
-    id: 3,
-    action: "Food Listed",
-    ngo: "Available to all",
-    food: "Dal Makhani with Rice",
-    time: "30 mins ago",
-    icon: <Plus className="h-4 w-4 text-orange-500" />,
-  },
-];
+const statusColor: Record<string, string> = {
+  active: "bg-green-500/10 text-green-600 border-green-500/20",
+  sold_out: "bg-red-500/10 text-red-600 border-red-500/20",
+  expired: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+  removed: "bg-muted text-muted-foreground border-border",
+};
 
-const quickInsights = [
-  {
-    title: "This Week's Impact",
-    value: "156 meals",
-    subtitle: "Served to 3 NGOs",
-    icon: <TrendingUp className="h-5 w-5" />,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
-  },
-  {
-    title: "Environmental Savings",
-    value: "23 kg CO2",
-    subtitle: "Diverted from landfill",
-    icon: <Leaf className="h-5 w-5" />,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-500/10",
-  },
-  {
-    title: "Monthly Goal",
-    value: "28/30",
-    subtitle: "93% complete",
-    icon: <Target className="h-5 w-5" />,
-    color: "text-orange-500",
-    bgColor: "bg-orange-500/10",
-  },
-];
+const typeColor: Record<string, string> = {
+  regular: "bg-blue-500/10 text-blue-600",
+  surplus: "bg-orange-500/10 text-orange-600",
+  discount: "bg-purple-500/10 text-purple-600",
+  donation: "bg-green-500/10 text-green-600",
+};
 
 export default function RestaurantDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const profileRes = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const restaurantId = profileRes.data.user?.id || profileRes.data.user?._id;
+
+      const [listingsRes, statsRes] = await Promise.all([
+        axios.get(`${API_URL}/restaurants/${restaurantId}/listings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${API_URL}/restaurants/my/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (listingsRes.data.success) setListings(listingsRes.data.data);
+      if (statsRes.data.success) setStats(statsRes.data.stats);
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+    // eslint-disable-next-line
+  }, []);
+
+  const handleToggle = async (listingId: string) => {
+    try {
+      const res = await axios.patch(
+        `${API_URL}/restaurants/listings/${listingId}/toggle`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        setListings((prev) =>
+          prev.map((l) =>
+            l._id === listingId
+              ? { ...l, isAvailable: res.data.data.isAvailable, status: res.data.data.status }
+              : l
+          )
+        );
+        // Refresh stats
+        const statsRes = await axios.get(`${API_URL}/restaurants/my/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (statsRes.data.success) setStats(statsRes.data.stats);
+        toast({ title: res.data.message });
+      }
+    } catch {
+      toast({ title: "Error toggling listing", variant: "destructive" });
+    }
+  };
+
+  const activeListings = listings.filter((l) => l.status === "active");
+  const recentListings = [...listings].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  ).slice(0, 5);
+
+  const statCards = [
+    {
+      label: "Food Listed",
+      value: stats?.total ?? 0,
+      sub: `${stats?.active ?? 0} active`,
+      icon: Utensils,
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+    },
+    {
+      label: "Active Now",
+      value: stats?.active ?? 0,
+      sub: `${stats?.soldOut ?? 0} sold out`,
+      icon: CheckCircle2,
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+    },
+    {
+      label: "Reservations",
+      value: stats?.totalReservations ?? 0,
+      sub: "Total add-to-fridge",
+      icon: TrendingUp,
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10",
+    },
+    {
+      label: "Sold Out",
+      value: stats?.soldOut ?? 0,
+      sub: `${stats?.expired ?? 0} expired`,
+      icon: AlertCircle,
+      color: "text-red-500",
+      bgColor: "bg-red-500/10",
+    },
+  ];
+
+  const quickInsights = [
+    {
+      title: "Total Reservations",
+      value: stats?.totalReservations ?? 0,
+      subtitle: "Items added to user fridges",
+      icon: <TrendingUp className="h-5 w-5" />,
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+    },
+    {
+      title: "Surplus Listed",
+      value: stats?.byListingType?.["surplus"] ?? 0,
+      subtitle: "Surplus food listings",
+      icon: <Leaf className="h-5 w-5" />,
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/10",
+    },
+    {
+      title: "Donations",
+      value: stats?.byListingType?.["donation"] ?? 0,
+      subtitle: "Donation listings",
+      icon: <Target className="h-5 w-5" />,
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -168,18 +225,22 @@ export default function RestaurantDashboard() {
               <span className="text-primary font-medium">{user.organizationName}</span>
             )}
             {user?.organizationName && " · "}
-            Manage your surplus food donations
+            Manage your food listings & donations
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
-            <Award className="h-3 w-3 mr-1" />
-            Level 4 Donor
-          </Badge>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchDashboardData}
+          disabled={loading}
+          className="w-fit"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </motion.div>
 
-      {/* Quick Action */}
+      {/* Quick Action Banner */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -193,14 +254,16 @@ export default function RestaurantDashboard() {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">Have surplus food?</h3>
-                <p className="text-sm text-muted-foreground">List it now and help reduce waste • 8 NGOs ready to pickup</p>
+                <p className="text-sm text-muted-foreground">
+                  List it now — users can add it directly to their fridge
+                </p>
               </div>
             </div>
-            <Button 
+            <Button
               onClick={() => navigate("/restaurant/list-food")}
               className="bg-gradient-to-r gradient-primary text-white w-full sm:w-auto"
             >
-              List Food
+              Add Listing
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </div>
@@ -209,26 +272,26 @@ export default function RestaurantDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
+        {statCards.map((stat, index) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
           >
-            <Card className="glass-card p-4 hover:shadow-lg transition-shadow cursor-pointer">
+            <Card className="glass-card p-4 hover:shadow-lg transition-shadow">
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-xl ${stat.bgColor}`}>
                   <stat.icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  {loading ? (
+                    <div className="h-7 w-12 bg-muted animate-pulse rounded" />
+                  ) : (
+                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{stat.label}</p>
-                </div>
-                <div className="text-right">
-                  <Badge variant="outline" className="text-xs">
-                    {stat.change}
-                  </Badge>
+                  <p className="text-xs text-muted-foreground/60">{stat.sub}</p>
                 </div>
               </div>
             </Card>
@@ -252,7 +315,11 @@ export default function RestaurantDashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground">{insight.title}</p>
-                  <p className="text-lg font-bold text-foreground">{insight.value}</p>
+                  {loading ? (
+                    <div className="h-6 w-8 bg-muted animate-pulse rounded mt-1" />
+                  ) : (
+                    <p className="text-lg font-bold text-foreground">{insight.value}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{insight.subtitle}</p>
                 </div>
               </div>
@@ -261,9 +328,9 @@ export default function RestaurantDashboard() {
         ))}
       </div>
 
-      {/* Main Content Grid */}
+      {/* Main Grid: Active Listings + Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Active Listings */}
+        {/* Active Listings – LIVE from API */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -275,64 +342,120 @@ export default function RestaurantDashboard() {
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-orange-500" />
                 Active Listings
+                <Badge variant="outline" className="text-green-600 border-green-500/30">
+                  {activeListings.length}
+                </Badge>
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/restaurant/list-food")}>
-                View All
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/restaurant/list-food")}
+              >
+                Manage All
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
 
-            <div className="space-y-3">
-              {activeListings.map((listing, index) => (
-                <motion.div
-                  key={listing.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + index * 0.1 }}
-                  className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50 cursor-pointer"
+            {loading ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Loading listings…
+              </div>
+            ) : activeListings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Package className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                <p className="text-muted-foreground">No active listings</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Create one to start accepting reservations
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-4 gradient-primary text-white"
+                  onClick={() => navigate("/restaurant/list-food")}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">{listing.name}</h3>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Package className="h-3 w-3" />
-                          {listing.quantity}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {listing.expiryTime} left
-                        </span>
-                        <span>• {listing.posted}</span>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Listing
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {activeListings.map((listing, index) => (
+                  <motion.div
+                    key={listing._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.06 }}
+                    className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-medium text-foreground text-sm">{listing.name}</h3>
+                          <Badge variant="outline" className={`text-xs ${typeColor[listing.listingType]}`}>
+                            {listing.listingType}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {listing.quantityAvailable} {listing.unit}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            {listing.category}
+                          </span>
+                          {listing.price > 0 && (
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              ${listing.discountedPrice ?? listing.price}
+                            </span>
+                          )}
+                          {listing.expiryDate && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Expires {new Date(listing.expiryDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <Badge
+                          variant="outline"
+                          className="bg-green-500/10 text-green-600 border-green-500/20 text-xs"
+                        >
+                          {listing.totalReservations} reserved
+                        </Badge>
+                        <button
+                          onClick={() => handleToggle(listing._id)}
+                          title="Toggle availability"
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                        >
+                          <ToggleRight className="h-5 w-5 text-green-500" />
+                        </button>
                       </div>
                     </div>
-                    <Badge
-                      variant={listing.status === "available" ? "default" : "secondary"}
-                      className={
-                        listing.status === "available"
-                          ? "bg-green-500/10 text-green-600 border-green-500/20"
-                          : "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                      }
-                    >
-                      {listing.status === "available" ? "Available" : "Claimed"}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
-                    <span className="text-xs text-muted-foreground">
-                      {listing.claims} NGO{listing.claims !== 1 ? "s" : ""} interested
-                    </span>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs">
-                      View Details
-                      <ArrowUpRight className="h-3 w-3 ml-1" />
-                    </Button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+                      <span className="text-xs text-muted-foreground">
+                        Listed {new Date(listing.createdAt).toLocaleDateString()}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => navigate("/restaurant/list-food")}
+                      >
+                        Manage
+                        <ArrowUpRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </Card>
         </motion.div>
 
-        {/* Recent Activity */}
+        {/* Recent Listings */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -341,117 +464,129 @@ export default function RestaurantDashboard() {
           <Card className="glass-card p-6 h-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Clock className="h-5 w-5 text-purple-500" />
-                Recent Activity
+                <Bell className="h-5 w-5 text-purple-500" />
+                Recent Listings
               </h2>
             </div>
 
-            <div className="space-y-3">
-              {recentActivity.map((activity, index) => (
-                <motion.div
-                  key={activity.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 + index * 0.1 }}
-                  className="flex gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    {activity.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground truncate">{activity.food}</p>
-                    <p className="text-xs text-muted-foreground">{activity.ngo} • {activity.time}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : recentListings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Clock className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">No listings yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentListings.map((listing, index) => (
+                  <motion.div
+                    key={listing._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 + index * 0.06 }}
+                    className="flex gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                      <Utensils className="h-4 w-4 text-orange-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{listing.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {listing.quantityAvailable} {listing.unit} ·{" "}
+                        <span className={statusColor[listing.status]?.split(" ")[1] ?? ""}>
+                          {listing.status.replace("_", " ")}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground/60">
+                        {new Date(listing.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <button
+                        onClick={() => handleToggle(listing._id)}
+                        className="p-1 rounded hover:bg-muted"
+                      >
+                        {listing.isAvailable ? (
+                          <ToggleRight className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
-            <Button variant="outline" className="w-full mt-4" size="sm">
-              View All Activity
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              size="sm"
+              onClick={() => navigate("/restaurant/list-food")}
+            >
+              View All Listings
+              <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </Card>
         </motion.div>
       </div>
 
-      {/* Pickup Requests */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card className="glass-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Bell className="h-5 w-5 text-blue-500" />
-              Pickup Requests
-              <Badge variant="outline" className="ml-2">
-                {pickupRequests.filter(r => r.status === "pending").length} Pending
-              </Badge>
+      {/* Breakdown by Category */}
+      {stats && Object.keys(stats.byCategory).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <Card className="glass-card p-6">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
+              <Tag className="h-5 w-5 text-blue-500" />
+              Listings by Category
             </h2>
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(stats.byCategory).map(([cat, count]) => (
+                <div
+                  key={cat}
+                  className="p-3 rounded-lg bg-muted/30 text-center hover:bg-muted/50 transition-colors"
+                >
+                  <p className="text-xl font-bold text-foreground">{count as number}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{cat}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
+      )}
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pickupRequests.map((request, index) => (
-              <motion.div
-                key={request.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + index * 0.1 }}
-                className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-xl">
-                      {request.ngoImage}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground text-sm">{request.ngoName}</h3>
-                      <p className="text-xs text-muted-foreground">{request.requestedAt}</p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant={request.status === "confirmed" ? "default" : "secondary"}
-                    className={
-                      request.status === "confirmed"
-                        ? "bg-green-500/10 text-green-600 border-green-500/20"
-                        : "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
-                    }
-                  >
-                    {request.status === "confirmed" ? (
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                    ) : (
-                      <Clock className="h-3 w-3 mr-1" />
-                    )}
-                    {request.status === "confirmed" ? "Confirmed" : "Pending"}
-                  </Badge>
-                </div>
-                <p className="text-sm text-foreground font-medium mb-2">{request.foodItem}</p>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {request.pickupTime}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {request.distance}
-                  </span>
-                </div>
-                {request.status === "pending" && (
-                  <div className="flex gap-2">
-                    <Button size="sm" className="flex-1 h-8 text-xs bg-green-500 hover:bg-green-600">
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1 h-8 text-xs">
-                      Decline
-                    </Button>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </Card>
-      </motion.div>
+      {/* No data state - first time user */}
+      {!loading && listings.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="glass-card p-8 text-center bg-gradient-to-br from-orange-500/5 to-red-500/5 border-orange-500/20">
+            <Package className="h-16 w-16 text-orange-500/40 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Welcome to your Restaurant Dashboard!
+            </h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Start by listing your first food item so users can discover and add it to their fridge.
+            </p>
+            <Button
+              onClick={() => navigate("/restaurant/list-food")}
+              className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Listing
+            </Button>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }

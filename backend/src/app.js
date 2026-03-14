@@ -10,6 +10,7 @@ const foodRoutes = require('./routes/foodRoutes');
 const donationRoutes = require('./routes/donationRoutes');
 const recipeRoutes = require('./routes/recipeRoutes');
 const ocrRoutes = require('./routes/ocrRoutes');
+const restaurantRoutes = require('./routes/restaurantRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -85,6 +86,7 @@ app.use('/api/food', foodRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/ocr', ocrRoutes);
+app.use('/api/restaurants', restaurantRoutes);
 
 // Optional: Test routes (only if file exists)
 try {
