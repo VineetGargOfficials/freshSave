@@ -1,297 +1,185 @@
+const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+// ── Initialize Gemini (backup AI) ─────────────────────────────────────────────
 let genAI = null;
-
-// Initialize Gemini only if API key exists
 if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'undefined') {
   try {
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    console.log('✅ Gemini AI initialized');
-  } catch (error) {
-    console.warn('⚠️ Failed to initialize Gemini:', error.message);
+  } catch (e) {
+    console.warn('⚠️ Gemini init failed:', e.message);
   }
-} else {
-  console.warn('⚠️ GEMINI_API_KEY not found, will use mock recipes');
 }
 
-/**
- * Generate recipe suggestions using Gemini AI
- * @param {string[]} ingredients - Array of ingredient names
- * @returns {Promise<Array>} Array of recipe objects
- */
-async function generateRecipeSuggestions(ingredients) {
-  // Validate input
-  if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
-    console.warn('⚠️ No ingredients provided');
-    return [];
-  }
-
-  // If no API key, use mock recipes
-  if (!genAI || !process.env.GEMINI_API_KEY) {
-    console.log('📝 Using mock recipes (no API key)');
-    return getMockRecipes(ingredients);
-  }
+// ── Spoonacular: find recipes by ingredients ───────────────────────────────────
+async function fetchFromSpoonacular(ingredients) {
+  const key = process.env.SPOONACULAR_API_KEY;
+  if (!key || key === 'your_spoonacular_key') return null;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Step 1: find recipes that match ingredients
+    const searchRes = await axios.get(
+      'https://api.spoonacular.com/recipes/findByIngredients',
+      {
+        params: {
+          apiKey: key,
+          ingredients: ingredients.join(','),
+          number: 5,
+          ranking: 1,        // maximize used ingredients
+          ignorePantry: true
+        },
+        timeout: 8000
+      }
+    );
 
-    const prompt = `You are a professional chef assistant. Given these ingredients: ${ingredients.join(', ')}, 
-suggest 3 creative and practical recipes that can be made using these ingredients.
+    const hits = searchRes.data;
+    if (!hits || hits.length === 0) return [];
 
-Focus on recipes that help reduce food waste by using ingredients that might be expiring soon.
+    // Step 2: get full details for each recipe (bulk)
+    const ids = hits.map(r => r.id).join(',');
+    const detailRes = await axios.get(
+      'https://api.spoonacular.com/recipes/informationBulk',
+      {
+        params: { apiKey: key, ids, includeNutrition: false },
+        timeout: 8000
+      }
+    );
 
-Return ONLY valid JSON array (no markdown, no code blocks, no extra text) in this exact format:
+    const details = detailRes.data;
+
+    return details.map(r => ({
+      title: r.title,
+      description: r.summary
+        ? r.summary.replace(/<[^>]+>/g, '').split('.').slice(0, 2).join('.') + '.'
+        : `A delicious recipe using ${ingredients.slice(0, 2).join(' and ')}.`,
+      ingredients: r.extendedIngredients
+        ? r.extendedIngredients.map(i => i.original)
+        : ingredients,
+      instructions: r.analyzedInstructions?.[0]?.steps?.map(s => ({
+        step: s.number,
+        description: s.step,
+        duration: s.length?.number || 5
+      })) || [
+        { step: 1, description: 'Prepare all ingredients.', duration: 5 },
+        { step: 2, description: 'Cook according to taste.', duration: 15 }
+      ],
+      prepTime: r.preparationMinutes > 0 ? r.preparationMinutes : Math.round((r.readyInMinutes || 20) * 0.3),
+      cookTime: r.cookingMinutes > 0 ? r.cookingMinutes : Math.round((r.readyInMinutes || 20) * 0.7),
+      servings: r.servings || 2,
+      category: mapDishType(r.dishTypes),
+      difficulty: mapDifficulty(r.readyInMinutes),
+      youtubeSearch: `${r.title} recipe`,
+      sourceUrl: r.sourceUrl || null,
+      image: r.image || null
+    }));
+
+  } catch (err) {
+    console.error('❌ Spoonacular error:', err.message);
+    return null;
+  }
+}
+
+// ── Gemini AI fallback ─────────────────────────────────────────────────────────
+async function fetchFromGemini(ingredients) {
+  if (!genAI) return null;
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `You are a professional chef. Given these ingredients: ${ingredients.join(', ')}, suggest 3 practical recipes to reduce food waste.
+
+Return ONLY a valid JSON array (no markdown, no code blocks) in this exact format:
 [
   {
     "title": "Recipe Name",
-    "description": "Brief appetizing description in one sentence",
-    "ingredients": ["2 bananas", "1 cup milk", "1 tbsp honey"],
+    "description": "One appetizing sentence description",
+    "ingredients": ["2 cups flour", "1 egg", "etc"],
     "instructions": [
-      {"step": 1, "description": "First step instructions", "duration": 5},
-      {"step": 2, "description": "Second step instructions", "duration": 10}
+      {"step": 1, "description": "Step description here", "duration": 5}
     ],
     "prepTime": 10,
     "cookTime": 20,
     "servings": 2,
-    "category": "breakfast",
+    "category": "dinner",
     "difficulty": "easy",
-    "youtubeSearch": "banana smoothie recipe"
+    "youtubeSearch": "recipe name recipe"
   }
 ]`;
 
-    console.log('🤖 Requesting recipes from Gemini AI...');
-    
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
-    
-    console.log('📥 Received response from Gemini');
-    
-    // Clean up response - remove markdown code blocks if present
-    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    // Parse JSON
-    const recipes = JSON.parse(text);
-    
-    // Validate and ensure it's an array
-    if (!Array.isArray(recipes)) {
-      throw new Error('Invalid response format - not an array');
-    }
+    const text = result.response.text()
+      .replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-    if (recipes.length === 0) {
-      throw new Error('No recipes returned from AI');
-    }
-    
-    console.log(`✅ Generated ${recipes.length} recipes successfully`);
+    const recipes = JSON.parse(text);
+    if (!Array.isArray(recipes) || recipes.length === 0) throw new Error('Bad format');
     return recipes;
 
-  } catch (error) {
-    console.error('❌ Gemini Recipe generation error:', error.message);
-    
-    // Fallback to mock recipes if API fails
-    console.log('⚠️ Falling back to mock recipes');
-    return getMockRecipes(ingredients);
+  } catch (err) {
+    console.error('❌ Gemini error:', err.message);
+    return null;
   }
 }
 
-/**
- * Mock recipe generator - fallback when API is unavailable
- * @param {string[]} ingredients - Array of ingredient names
- * @returns {Array} Array of recipe objects
- */
-function getMockRecipes(ingredients) {
-  // Validate input
-  if (!ingredients || !Array.isArray(ingredients)) {
-    console.warn('⚠️ Invalid ingredients for mock recipes');
-    return getDefaultRecipes();
+// ── Main export ────────────────────────────────────────────────────────────────
+async function generateRecipeSuggestions(ingredients) {
+  if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    return [];
   }
 
-  const recipes = [];
-  const ingredientNames = ingredients.map(i => 
-    typeof i === 'string' ? i.toLowerCase() : String(i).toLowerCase()
-  );
+  console.log(`🔍 Fetching recipes for: ${ingredients.join(', ')}`);
 
-  console.log('📝 Generating mock recipes for:', ingredientNames.join(', '));
-
-  // Banana recipes
-  if (ingredientNames.some(i => i.includes('banana'))) {
-    recipes.push({
-      title: 'Banana Smoothie Bowl',
-      description: 'Healthy and delicious breakfast bowl with fresh bananas',
-      ingredients: ['2 bananas', '1 cup milk', '1 tbsp honey', 'toppings of choice'],
-      instructions: [
-        { step: 1, description: 'Slice bananas and freeze for 10 minutes', duration: 10 },
-        { step: 2, description: 'Blend frozen bananas with milk until smooth and creamy', duration: 2 },
-        { step: 3, description: 'Pour into bowl and add your favorite toppings', duration: 1 }
-      ],
-      prepTime: 5,
-      cookTime: 0,
-      servings: 2,
-      category: 'breakfast',
-      difficulty: 'easy',
-      youtubeSearch: 'banana smoothie bowl recipe'
-    });
+  // 1. Try Spoonacular (real recipes with images)
+  const spoonacularRecipes = await fetchFromSpoonacular(ingredients);
+  if (spoonacularRecipes && spoonacularRecipes.length > 0) {
+    console.log(`✅ Spoonacular returned ${spoonacularRecipes.length} recipes`);
+    return spoonacularRecipes;
   }
 
-  // Strawberry recipes
-  if (ingredientNames.some(i => i.includes('strawberry') || i.includes('strawberries'))) {
-    recipes.push({
-      title: 'Fresh Strawberry Parfait',
-      description: 'Layered dessert with fresh strawberries and cream',
-      ingredients: ['1 cup strawberries', '1 cup yogurt', '2 tbsp honey', 'granola'],
-      instructions: [
-        { step: 1, description: 'Wash and slice strawberries', duration: 5 },
-        { step: 2, description: 'Mix yogurt with honey', duration: 2 },
-        { step: 3, description: 'Layer yogurt, strawberries, and granola in glasses', duration: 3 }
-      ],
-      prepTime: 10,
-      cookTime: 0,
-      servings: 2,
-      category: 'dessert',
-      difficulty: 'easy',
-      youtubeSearch: 'strawberry parfait recipe'
-    });
+  // 2. Try Gemini AI
+  const geminiRecipes = await fetchFromGemini(ingredients);
+  if (geminiRecipes && geminiRecipes.length > 0) {
+    console.log(`✅ Gemini returned ${geminiRecipes.length} recipes`);
+    return geminiRecipes;
   }
 
-  // Egg recipes
-  if (ingredientNames.some(i => i.includes('egg'))) {
-    recipes.push({
-      title: 'Veggie Scrambled Eggs',
-      description: 'Quick protein-packed breakfast with fluffy scrambled eggs',
-      ingredients: ['3 eggs', '1/2 cup mixed vegetables', 'salt', 'pepper', '1 tbsp butter'],
-      instructions: [
-        { step: 1, description: 'Beat eggs with salt and pepper in a bowl', duration: 2 },
-        { step: 2, description: 'Melt butter in pan and cook vegetables until soft', duration: 3 },
-        { step: 3, description: 'Add beaten eggs and scramble gently until just set', duration: 4 },
-        { step: 4, description: 'Remove from heat and serve immediately', duration: 1 }
-      ],
-      prepTime: 5,
-      cookTime: 10,
-      servings: 2,
-      category: 'breakfast',
-      difficulty: 'easy',
-      youtubeSearch: 'veggie scrambled eggs recipe'
-    });
-  }
-
-  // Milk recipes
-  if (ingredientNames.some(i => i.includes('milk'))) {
-    recipes.push({
-      title: 'Creamy Hot Chocolate',
-      description: 'Warm and comforting drink perfect for any time',
-      ingredients: ['2 cups milk', '2 tbsp cocoa powder', '2 tbsp sugar', 'vanilla extract'],
-      instructions: [
-        { step: 1, description: 'Heat milk in a saucepan over medium heat', duration: 5 },
-        { step: 2, description: 'Whisk in cocoa powder and sugar', duration: 2 },
-        { step: 3, description: 'Add vanilla and stir until well combined', duration: 1 },
-        { step: 4, description: 'Pour into mugs and serve hot', duration: 1 }
-      ],
-      prepTime: 2,
-      cookTime: 8,
-      servings: 2,
-      category: 'beverage',
-      difficulty: 'easy',
-      youtubeSearch: 'homemade hot chocolate recipe'
-    });
-  }
-
-  // Chicken recipes
-  if (ingredientNames.some(i => i.includes('chicken'))) {
-    recipes.push({
-      title: 'Quick Chicken Stir-Fry',
-      description: 'Fast and flavorful chicken with crispy vegetables',
-      ingredients: ['300g chicken breast', '2 cups mixed vegetables', '3 tbsp soy sauce', '2 cloves garlic', '1 tsp ginger'],
-      instructions: [
-        { step: 1, description: 'Cut chicken into bite-sized pieces and season', duration: 5 },
-        { step: 2, description: 'Heat oil in wok and stir-fry chicken until golden', duration: 6 },
-        { step: 3, description: 'Add garlic, ginger, and vegetables', duration: 2 },
-        { step: 4, description: 'Add soy sauce and cook until vegetables are tender-crisp', duration: 4 }
-      ],
-      prepTime: 10,
-      cookTime: 15,
-      servings: 3,
-      category: 'dinner',
-      difficulty: 'medium',
-      youtubeSearch: 'chicken stir fry recipe'
-    });
-  }
-
-  // Tomato recipes
-  if (ingredientNames.some(i => i.includes('tomato'))) {
-    recipes.push({
-      title: 'Fresh Tomato Pasta',
-      description: 'Simple pasta with vibrant fresh tomato sauce',
-      ingredients: ['4 ripe tomatoes', '250g pasta', '3 cloves garlic', 'fresh basil', 'olive oil'],
-      instructions: [
-        { step: 1, description: 'Cook pasta until al dente', duration: 10 },
-        { step: 2, description: 'Dice tomatoes and mince garlic', duration: 5 },
-        { step: 3, description: 'Sauté garlic in olive oil until fragrant', duration: 2 },
-        { step: 4, description: 'Add tomatoes and simmer until sauce-like', duration: 8 },
-        { step: 5, description: 'Toss pasta with sauce and fresh basil', duration: 2 }
-      ],
-      prepTime: 8,
-      cookTime: 20,
-      servings: 3,
-      category: 'lunch',
-      difficulty: 'easy',
-      youtubeSearch: 'fresh tomato pasta recipe'
-    });
-  }
-
-  // Default recipe if no specific ingredients matched
-  if (recipes.length === 0) {
-    recipes.push({
-      title: 'Mixed Ingredient Stir-Fry',
-      description: 'Use up your expiring ingredients in one delicious dish',
-      ingredients: ingredientNames.map(ing => `Your ${ing}`),
-      instructions: [
-        { step: 1, description: 'Wash and chop all ingredients into bite-sized pieces', duration: 10 },
-        { step: 2, description: 'Heat oil in a large pan over medium-high heat', duration: 2 },
-        { step: 3, description: 'Add harder vegetables first and cook', duration: 5 },
-        { step: 4, description: 'Add remaining ingredients and season to taste', duration: 5 },
-        { step: 5, description: 'Cook until everything is tender and serve', duration: 3 }
-      ],
-      prepTime: 15,
-      cookTime: 15,
-      servings: 3,
-      category: 'lunch',
-      difficulty: 'easy',
-      youtubeSearch: `${ingredientNames.slice(0, 2).join(' ')} recipe`
-    });
-  }
-
-  console.log(`✅ Generated ${recipes.length} mock recipes`);
-  return recipes;
+  // 3. Last resort: generic fallback
+  console.warn('⚠️ All APIs failed. Returning generic recipe.');
+  return [{
+    title: `${ingredients[0]} Stir-Fry`,
+    description: `A quick and easy dish using your ${ingredients.slice(0, 3).join(', ')}.`,
+    ingredients: ingredients.map(i => `Your ${i}`),
+    instructions: [
+      { step: 1, description: 'Wash and chop all ingredients.', duration: 10 },
+      { step: 2, description: 'Heat oil in a pan over medium heat.', duration: 2 },
+      { step: 3, description: 'Add ingredients starting with harder ones.', duration: 5 },
+      { step: 4, description: 'Season to taste and cook until done.', duration: 8 }
+    ],
+    prepTime: 10,
+    cookTime: 15,
+    servings: 2,
+    category: 'lunch',
+    difficulty: 'easy',
+    youtubeSearch: `${ingredients.slice(0, 2).join(' ')} recipe`
+  }];
 }
 
-/**
- * Get default recipes when no ingredients are provided
- * @returns {Array} Array of default recipe objects
- */
-function getDefaultRecipes() {
-  return [
-    {
-      title: 'Simple Pantry Meal',
-      description: 'A basic recipe using common pantry staples',
-      ingredients: ['Basic pantry items', 'Salt', 'Pepper', 'Oil'],
-      instructions: [
-        { step: 1, description: 'Gather available ingredients from your pantry', duration: 5 },
-        { step: 2, description: 'Prepare ingredients as needed', duration: 10 },
-        { step: 3, description: 'Cook with love and creativity', duration: 15 }
-      ],
-      prepTime: 5,
-      cookTime: 20,
-      servings: 2,
-      category: 'lunch',
-      difficulty: 'easy',
-      youtubeSearch: 'simple cooking recipes'
-    }
-  ];
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function mapDishType(dishTypes) {
+  if (!dishTypes || dishTypes.length === 0) return 'meal';
+  if (dishTypes.includes('breakfast')) return 'breakfast';
+  if (dishTypes.includes('lunch') || dishTypes.includes('salad') || dishTypes.includes('soup')) return 'lunch';
+  if (dishTypes.includes('dinner') || dishTypes.includes('main course')) return 'dinner';
+  if (dishTypes.includes('dessert')) return 'dessert';
+  if (dishTypes.includes('snack') || dishTypes.includes('appetizer')) return 'snack';
+  if (dishTypes.includes('beverage') || dishTypes.includes('drink')) return 'beverage';
+  return 'meal';
 }
 
-// Export functions
-module.exports = {
-  generateRecipeSuggestions,
-  getMockRecipes,
-  getDefaultRecipes
-};
+function mapDifficulty(readyInMinutes) {
+  if (!readyInMinutes) return 'medium';
+  if (readyInMinutes <= 20) return 'easy';
+  if (readyInMinutes <= 45) return 'medium';
+  return 'hard';
+}
+
+module.exports = { generateRecipeSuggestions };

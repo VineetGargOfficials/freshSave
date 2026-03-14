@@ -41,6 +41,8 @@ interface Recipe {
   category: string;
   difficulty: string;
   youtubeSearch: string;
+  image?: string | null;
+  sourceUrl?: string | null;
 }
 
 interface FoodItem {
@@ -445,9 +447,12 @@ export default function RecipeSuggestions() {
                     {/* Recipe Header */}
                     <div className="p-5 sm:p-6">
                       <div className="flex gap-4">
-                        {/* Icon */}
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl gradient-primary text-2xl">
-                          {categoryEmoji}
+                        {/* Icon / Image */}
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl overflow-hidden gradient-primary text-2xl">
+                          {recipe.image
+                            ? <img src={recipe.image} alt={recipe.title} className="w-full h-full object-cover" />
+                            : categoryEmoji
+                          }
                         </div>
 
                         {/* Content */}
@@ -580,8 +585,8 @@ export default function RecipeSuggestions() {
                       )}
                     </AnimatePresence>
 
-                    {/* YouTube Link Footer */}
-                    <div className="px-5 sm:px-6 py-3 bg-muted/30 border-t border-border/50">
+                    {/* Footer: YouTube + Source */}
+                    <div className="px-5 sm:px-6 py-3 bg-muted/30 border-t border-border/50 flex flex-wrap items-center gap-4">
                       <a
                         href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
                           recipe.youtubeSearch || recipe.title + " recipe"
@@ -596,6 +601,17 @@ export default function RecipeSuggestions() {
                         Watch Video Tutorial
                         <ExternalLink className="h-3 w-3" />
                       </a>
+                      {recipe.sourceUrl && (
+                        <a
+                          href={recipe.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View Full Recipe
+                        </a>
+                      )}
                     </div>
                   </Card>
                 </motion.div>
