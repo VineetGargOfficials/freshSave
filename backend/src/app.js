@@ -13,6 +13,7 @@ const ocrRoutes = require('./routes/IndividualUsers/ocrRoutes');
 const restaurantRoutes = require('./routes/Restaurants/restaurantRoutes');
 const geoRoutes = require('./routes/geoRoutes');
 const ngoRoutes = require('./routes/ngoRoutes');
+const connectionRoutes = require('./routes/connectionRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -91,6 +92,7 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/ngos', ngoRoutes);
+app.use('/api/connections', connectionRoutes);
 
 // Optional: Test routes (only if file exists)
 try {

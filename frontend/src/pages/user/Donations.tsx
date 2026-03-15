@@ -16,9 +16,12 @@ import {
   ChevronDown,
   Utensils,
   Info,
+  Handshake,
 } from "lucide-react";
 import { getDonations, addDonation } from "@/lib/storage";
 import { DonationItem } from "@/types/food";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ConnectNGOs from "../restaurants/ConnectNGO";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,9 +196,22 @@ export default function Donations() {
   const claimedCount = donations.filter(d => d.status === "claimed").length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <motion.div 
+    <div className="space-y-6 max-w-7xl mx-auto pb-10 px-4 sm:px-0">
+      <Tabs defaultValue="donations" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 max-w-sm mb-6 bg-muted/50 p-1">
+          <TabsTrigger value="donations" className="rounded-md">
+            <Heart className="h-4 w-4 mr-2" />
+            Food Listings
+          </TabsTrigger>
+          <TabsTrigger value="ngos" className="rounded-md">
+            <Handshake className="h-4 w-4 mr-2" />
+            Connect NGOs
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="donations" className="space-y-6 focus-visible:outline-none">
+          {/* Header */}
+          <motion.div 
         initial={{ opacity: 0, y: -10 }} 
         animate={{ opacity: 1, y: 0 }} 
         className="flex flex-col sm:flex-row sm:items-end justify-between gap-4"
@@ -497,6 +513,12 @@ export default function Donations() {
           })
         )}
       </div>
+      </TabsContent>
+
+      <TabsContent value="ngos" className="focus-visible:outline-none">
+        <ConnectNGOs />
+      </TabsContent>
+    </Tabs>
     </div>
   );
 }

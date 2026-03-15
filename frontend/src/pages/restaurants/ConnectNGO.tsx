@@ -123,7 +123,7 @@ const NGO_TYPE_ICONS: Record<string, string> = {
 
 export default function ConnectNGOs() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   // State
   const [ngos, setNgos] = useState<NGO[]>([]);
@@ -165,10 +165,33 @@ export default function ConnectNGOs() {
 
       console.log("[ConnectNGO] Fetching with params:", params);
 
+      // Fetch nearby NGOs
       const res = await axios.get(`${API_URL}/ngos/nearby`, { params });
-      if (res.data.success) {
-        setNgos(res.data.data || []);
+      let fetchedNgos = res.data.success ? (res.data.data || []) : [];
+
+      // Fetch connection statuses if authenticated
+      if (token) {
+        try {
+          const connRes = await axios.get(`${API_URL}/connections/my`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (connRes.data.success) {
+            const connections = connRes.data.data;
+            fetchedNgos = fetchedNgos.map((ngo: any) => {
+              // Ensure we match object ID properly since populate might return an object for `ngo`
+              const conn = connections.find((c: any) => (c.ngo?._id === ngo._id) || (c.ngo === ngo._id));
+              if (conn) {
+                return { ...ngo, connectionStatus: conn.status };
+              }
+              return { ...ngo, connectionStatus: "none" };
+            });
+          }
+        } catch (connErr) {
+          console.error("Failed to fetch connection statuses", connErr);
+        }
       }
+
+      setNgos(fetchedNgos);
     } catch (error) {
       console.error("Failed to fetch NGOs", error);
       toast.error("Failed to fetch NGOs. Please try again.");
@@ -226,26 +249,42 @@ export default function ConnectNGOs() {
     setShowConnectModal(true);
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (!selectedNGO) return;
     setConnecting(true);
 
-    setTimeout(() => {
-      setNgos((prev) =>
-        prev.map((n) =>
-          (n._id && n._id === selectedNGO?._id) ||
-          (n.id && n.id === selectedNGO?.id)
-            ? { ...n, connectionStatus: "pending" as const }
-            : n
-        )
-      );
+    try {
+      const ngoIdToConnect = selectedNGO._id || selectedNGO.id;
+      const payload = {
+        ngoId: ngoIdToConnect,
+        message: connectMessage || `Hello, ${user?.organizationName || user?.name} would like to connect with your NGO.`
+      };
+
+      const res = await axios.post(`${API_URL}/connections/request`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        setNgos((prev) =>
+          prev.map((n) =>
+            (n._id && n._id === ngoIdToConnect) ||
+            (n.id && n.id === ngoIdToConnect)
+              ? { ...n, connectionStatus: "pending" as const }
+              : n
+          )
+        );
+        setShowConnectModal(false);
+        setConnectMessage("");
+        toast.success(
+          `Connection request sent to ${selectedNGO.organizationName}!`
+        );
+      }
+    } catch (error: any) {
+      console.error("Connection request failed:", error);
+      toast.error(error.response?.data?.message || "Failed to send connection request.");
+    } finally {
       setConnecting(false);
-      setShowConnectModal(false);
-      setConnectMessage("");
-      toast.success(
-        `Connection request sent to ${selectedNGO.organizationName}!`
-      );
-    }, 1500);
+    }
   };
 
   const clearFilters = () => {

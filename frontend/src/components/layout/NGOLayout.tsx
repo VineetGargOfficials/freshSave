@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
   { path: "/ngo", icon: Home, label: "Home" },
   { path: "/ngo/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/ngo/partners", icon: HandHeart, label: "Partners" },
 ];
 
 export default function NGOLayout() {
@@ -100,10 +101,10 @@ export default function NGOLayout() {
                   <Building2 className="h-4 w-4 mr-2" />
                   Organization Settings
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem onClick={() => navigate("/ngo/connect-restaurants")}>
-                  <HandHeart className="h-4 w-4 mr-2 text-blue-500" />
-                  Connect Restaurants
-                </DropdownMenuItem> */}
+                <DropdownMenuItem onClick={() => navigate("/ngo/partners")}>
+                  <HandHeart className="h-4 w-4 mr-2" />
+                  Partners & Connections
+                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
                   Settings

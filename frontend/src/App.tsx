@@ -25,6 +25,7 @@ import Donations from "@/pages/user/Donations";
 import NGODashboard from "@/pages/ngo/NGODashboard";
 import NGOAnalytics from "@/pages/ngo/NGOAnalytics";
 import NGOProfile from "./pages/ngo/NGOProfile";
+import NGOPartners from "./pages/ngo/NGOPartners";
 
 // Restaurant pages
 import RestaurantHome from "@/pages/restaurants/RestaurantDashboard";
@@ -241,6 +242,7 @@ function AppRoutes() {
         <Route index element={<NGODashboard />} />
         <Route path="analytics" element={<NGOAnalytics />} />
         <Route path="profile" element={<NGOProfile />} />
+        <Route path="partners" element={<NGOPartners />} />
       </Route>
  {/* ==================== RESTAURANT ROUTES ==================== */}
       <Route path="/restaurant" element={<RestaurantProtectedRoute><RestaurantLayout /></RestaurantProtectedRoute>}>
