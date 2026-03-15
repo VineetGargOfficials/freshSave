@@ -45,13 +45,19 @@ exports.browseListings = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
+    // Optional: Filter out expired items in memory if pre-save hasn't caught them
+    const validListings = listings.filter(l => {
+      if (l.expiryDate && new Date(l.expiryDate) < new Date()) return false;
+      return true;
+    });
+
     res.status(200).json({
       success: true,
-      count: listings.length,
+      count: validListings.length,
       total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)),
-      data: listings
+      data: validListings
     });
   } catch (error) {
     console.error('Browse listings error:', error);
@@ -173,6 +179,116 @@ exports.getRestaurantListings = async (req, res) => {
   } catch (error) {
     console.error('Get restaurant listings error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch restaurant listings' });
+  }
+};
+
+/**
+ * @desc    Get all active food listings from restaurants connected to the NGO
+ * @route   GET /api/restaurants/connected/listings
+ * @access  Private (NGO only)
+ */
+exports.getConnectedListings = async (req, res) => {
+  try {
+    const Connection = require('../models/Connection');
+    const RestaurantFoodListing = require('../models/Restaurants/RestaurantFoodListing');
+    const IndividualDonation = require('../models/IndividualUsers/Donation');
+
+    if (req.user.role !== 'ngo') {
+      console.log(`[getConnectedListings] Access denied: user role is ${req.user.role}`);
+      return res.status(403).json({ success: false, message: 'Only NGOs can access connected partner listings' });
+    }
+
+    console.log(`[getConnectedListings] Fetching connections for NGO: ${req.user.id}`);
+
+    // 1. Find all accepted connections for this NGO
+    const connections = await Connection.find({
+      ngo: req.user.id,
+      status: 'accepted'
+    });
+
+    console.log(`[getConnectedListings] Found ${connections.length} accepted connections`);
+
+    if (!connections || connections.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        message: 'No connected partners found',
+        data: []
+      });
+    }
+
+    const connectedRestaurantIds = connections
+      .filter(c => c.requesterRole === 'restaurant')
+      .map(c => c.requester);
+    
+    const connectedUserIds = connections
+      .filter(c => c.requesterRole === 'user')
+      .map(c => c.requester);
+
+    console.log(`[getConnectedListings] Connected: ${connectedRestaurantIds.length} restaurants, ${connectedUserIds.length} users`);
+
+    // 2. Fetch active listings from restaurants
+    const restaurantListings = await RestaurantFoodListing.find({
+      restaurant: { $in: connectedRestaurantIds },
+      status: 'active',
+      isAvailable: true
+    })
+    .populate('restaurant', 'name organizationName address profileImage location phoneNumber')
+    .lean();
+
+    console.log(`[getConnectedListings] Found ${restaurantListings.length} restaurant listings`);
+
+    // 3. Fetch active donations from individual users
+    const userDonations = await IndividualDonation.find({
+      donor: { $in: connectedUserIds },
+      status: 'available'
+    })
+    .populate('donor', 'name address profileImage phoneNumber location')
+    .lean();
+
+    console.log(`[getConnectedListings] Found ${userDonations.length} user donations`);
+
+    // 4. Combine and format both
+    const formattedRestaurantListings = restaurantListings.map(l => ({
+      ...l,
+      _id: l._id,
+      name: l.name,
+      description: l.description,
+      quantity: `${l.quantityAvailable} ${l.unit}`,
+      expiryDate: l.expiryDate,
+      partner: l.restaurant,
+      partnerType: 'restaurant',
+      source: 'listing'
+    }));
+
+    const formattedUserDonations = userDonations.map(d => ({
+      ...d,
+      _id: d._id,
+      name: d.foodDescription.split('\n')[0].substring(0, 50), // Use first line of description as name
+      description: d.foodDescription,
+      quantity: d.quantity,
+      expiryDate: d.availableUntil,
+      partner: d.donor,
+      partnerType: 'individual',
+      source: 'donation'
+    }));
+
+    const allListings = [...formattedRestaurantListings, ...formattedUserDonations]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    console.log(`[getConnectedListings] Total results: ${allListings.length}`);
+    allListings.forEach(l => {
+      console.log(` - ${l.partnerType}: ${l.name} from ${l.partnerType === 'restaurant' ? l.partner.organizationName : l.partner.name}`);
+    });
+
+    res.status(200).json({
+      success: true,
+      count: allListings.length,
+      data: allListings
+    });
+  } catch (error) {
+    console.error('Get connected listings error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch connected listings' });
   }
 };
 

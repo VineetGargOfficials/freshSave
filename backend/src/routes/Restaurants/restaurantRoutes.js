@@ -12,7 +12,8 @@ const {
   updateListing,
   deleteListing,
   toggleAvailability,
-  getMyStats
+  getMyStats,
+  getConnectedListings
 } = require('../../controllers/restaurantController');
 
 const { protect, authorize } = require('../../middleware/auth');
@@ -81,6 +82,7 @@ router.post('/listings/:id/add-to-fridge', addListingToFridge);
  * Restaurant sees their own dashboard stats (MUST be before /:restaurantId routes)
  */
 router.get('/my/stats', authorize('restaurant', 'admin'), getMyStats);
+router.get('/connected/listings', authorize('ngo', 'admin'), getConnectedListings);
 
 // ─── Dynamic param routes last ────────────────────────────────────────────────
 

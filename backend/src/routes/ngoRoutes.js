@@ -9,6 +9,7 @@ router.get('/google/:placeId', ngoController.getGooglePlaceDetails);
 router.get('/', ngoController.getAllNGOs);
 router.get('/:id', ngoController.getNGOById);
 
+
 // Protected routes
 router.put('/profile', protect, ngoController.updateNGOProfile);
 
