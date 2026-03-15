@@ -26,6 +26,7 @@ import {
   Info,
   X,
   ArrowLeft,
+  Eye,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -178,7 +179,6 @@ export default function ConnectNGOs() {
           if (connRes.data.success) {
             const connections = connRes.data.data;
             fetchedNgos = fetchedNgos.map((ngo: any) => {
-              // Ensure we match object ID properly since populate might return an object for `ngo`
               const conn = connections.find((c: any) => (c.ngo?._id === ngo._id) || (c.ngo === ngo._id));
               if (conn) {
                 return { ...ngo, connectionStatus: conn.status };
@@ -214,7 +214,6 @@ export default function ConnectNGOs() {
       !cityFilter ||
       ngo.address?.city?.toLowerCase().includes(cityFilter.toLowerCase());
 
-    // FIX: "Verified Only" now checks emailVerified
     const matchesVerified = !verifiedOnly || ngo.emailVerified === true;
 
     return matchesSearch && matchesType && matchesCity && matchesVerified;
@@ -228,7 +227,6 @@ export default function ConnectNGOs() {
   // ── Stats ───────────────────────────────────────────────────────────────────
   const stats = {
     totalNGOs: ngos.length,
-    // FIX: Count only email-verified NGOs
     verifiedNGOs: ngos.filter((n) => n.emailVerified === true).length,
     connectedNGOs: connectedNGOs.length,
     pendingRequests: pendingNGOs.length,
@@ -294,6 +292,161 @@ export default function ConnectNGOs() {
     setVerifiedOnly(false);
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // PARTNER CARD COMPONENT - Reusable for Active Partners section
+  // ══════════════════════════════════════════════════════════════════════════
+  const PartnerCard = ({ ngo, status }: { ngo: NGO; status: "connected" | "pending" | "rejected" }) => {
+    const statusConfig = {
+      connected: {
+        borderClass: "border-green-500/30 hover:border-green-500/50",
+        badgeClass: "bg-green-500/10 text-green-600 border-green-500/20",
+        statusText: "Connected",
+        icon: CheckCircle2,
+        iconColor: "text-green-500",
+      },
+      pending: {
+        borderClass: "border-orange-500/30 hover:border-orange-500/50",
+        badgeClass: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+        statusText: "Awaiting Response",
+        icon: Clock,
+        iconColor: "text-orange-500",
+      },
+      rejected: {
+        borderClass: "border-red-500/30 opacity-60",
+        badgeClass: "bg-red-500/10 text-red-600 border-red-500/20",
+        statusText: "Declined",
+        icon: X,
+        iconColor: "text-red-500",
+      },
+    };
+
+    const config = statusConfig[status];
+    const StatusIcon = config.icon;
+
+    return (
+      <Card className={`glass-card p-5 h-full flex flex-col hover:shadow-lg transition-all ${config.borderClass}`}>
+        {/* Header */}
+        <div className="flex items-start gap-4 mb-4">
+          <div className={`h-14 w-14 rounded-xl ${status === "connected" ? "bg-green-500/10" : status === "pending" ? "bg-orange-500/10" : "bg-red-500/10"} flex items-center justify-center text-2xl shrink-0`}>
+            {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-foreground truncate">
+                {ngo.organizationName}
+              </h3>
+              <Badge className={config.badgeClass}>
+                <StatusIcon className="h-3 w-3 mr-1" />
+                {config.statusText}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground capitalize">
+              {ngo.ngoType?.replace(/_/g, " ")}
+            </p>
+            {ngo.address?.city && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                <MapPin className="h-3 w-3" />
+                {ngo.address.city}
+                {ngo.address.state && `, ${ngo.address.state}`}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Description */}
+        {ngo.organizationDescription && (
+          <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+            {ngo.organizationDescription}
+          </p>
+        )}
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {ngo.dailyBeneficiaries != null && (
+            <div className="p-2 rounded-lg bg-muted/30 text-center">
+              <p className="text-lg font-bold text-foreground">
+                {ngo.dailyBeneficiaries}
+              </p>
+              <p className="text-xs text-muted-foreground">Meals/Day</p>
+            </div>
+          )}
+          {ngo.totalBeneficiaries != null && (
+            <div className="p-2 rounded-lg bg-muted/30 text-center">
+              <p className="text-lg font-bold text-foreground">
+                {ngo.totalBeneficiaries}
+              </p>
+              <p className="text-xs text-muted-foreground">Beneficiaries</p>
+            </div>
+          )}
+        </div>
+
+        {/* Capabilities */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {ngo.hasPickupVehicle && (
+            <Badge
+              variant="outline"
+              className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20"
+            >
+              <Truck className="h-3 w-3 mr-1" />
+              Has Vehicle
+            </Badge>
+          )}
+          {ngo.hasRefrigeration && (
+            <Badge
+              variant="outline"
+              className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+            >
+              <Thermometer className="h-3 w-3 mr-1" />
+              Refrigeration
+            </Badge>
+          )}
+          {ngo.emailVerified && (
+            <Badge
+              variant="outline"
+              className="text-xs bg-green-500/10 text-green-600 border-green-500/20"
+            >
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              Verified
+            </Badge>
+          )}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Actions */}
+        <div className="flex gap-2 mt-auto pt-4 border-t border-border/50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => openDetailsModal(ngo)}
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            View Details
+          </Button>
+
+          {status === "connected" && (
+            <div className="flex gap-2">
+              {ngo.phoneNumber && (
+                <Button variant="outline" size="icon" asChild className="shrink-0">
+                  <a href={`tel:${ngo.phoneNumber}`}>
+                    <Phone className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" size="icon" asChild className="shrink-0">
+                <a href={`mailto:${ngo.email}`}>
+                  <Mail className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -322,17 +475,6 @@ export default function ConnectNGOs() {
             </p>
           </div>
         </div>
-        {/* <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={loading}
-        >
-          <RefreshCw
-            className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
-          />
-          Refresh
-        </Button> */}
       </motion.div>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -496,7 +638,6 @@ export default function ConnectNGOs() {
                     onChange={(e) => setCityFilter(e.target.value)}
                   />
 
-                  {/* FIX: Verified Only now filters by emailVerified */}
                   <Button
                     variant={verifiedOnly ? "default" : "outline"}
                     size="sm"
@@ -521,16 +662,6 @@ export default function ConnectNGOs() {
                     />
                     Refresh Results
                   </Button>
-
-                  {/* {(user?.address?.city || user?.address?.state) && (
-                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 text-xs font-medium ml-auto">
-                      <MapPin className="h-3 w-3" />
-                      Searching from:{" "}
-                      {[user?.address?.city, user?.address?.state]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </div>
-                  )} */}
                 </div>
               </div>
 
@@ -640,11 +771,6 @@ export default function ConnectNGOs() {
                                 <MapPin className="h-3 w-3" />
                                 {ngo.address.city}
                                 {ngo.address.state && `, ${ngo.address.state}`}
-                                {ngo.distance != null && (
-                                  <span className="ml-1 text-rose-500 font-medium">
-                                    • {ngo.distance} km away
-                                  </span>
-                                )}
                               </p>
                             )}
                           </div>
@@ -813,7 +939,7 @@ export default function ConnectNGOs() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* CONNECTIONS TAB */}
+      {/* CONNECTIONS TAB - UPDATED WITH VIEW DETAILS */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "connections" && (
         <motion.div
@@ -843,133 +969,74 @@ export default function ConnectNGOs() {
             </Card>
           ) : (
             <>
-              {/* Active Partners */}
+              {/* Active Partners - UPDATED WITH DETAILED CARDS */}
               {connectedNGOs.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                     Active Partners ({connectedNGOs.length})
                   </h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {connectedNGOs.map((ngo) => (
-                      <Card
-                        key={ngo._id || ngo.id}
-                        className="glass-card p-4 border-green-500/20"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center text-xl">
-                            {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">
-                              {ngo.organizationName}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {ngo.address?.city || "Location not specified"}
-                            </p>
-                            <p className="text-xs text-green-600">Connected</p>
-                          </div>
-                          <div className="flex gap-2">
-                            {ngo.phoneNumber && (
-                              <Button variant="outline" size="icon" asChild>
-                                <a href={`tel:${ngo.phoneNumber}`}>
-                                  <Phone className="h-4 w-4" />
-                                </a>
-                              </Button>
-                            )}
-                            <Button variant="outline" size="icon" asChild>
-                              <a href={`mailto:${ngo.email}`}>
-                                <Mail className="h-4 w-4" />
-                              </a>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => openDetailsModal(ngo)}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
+                  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <AnimatePresence>
+                      {connectedNGOs.map((ngo, index) => (
+                        <motion.div
+                          key={ngo._id || ngo.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <PartnerCard ngo={ngo} status="connected" />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
                 </div>
               )}
 
-              {/* Pending Requests */}
+              {/* Pending Requests - UPDATED WITH DETAILED CARDS */}
               {pendingNGOs.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                     <Clock className="h-5 w-5 text-orange-500" />
                     Pending Requests ({pendingNGOs.length})
                   </h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {pendingNGOs.map((ngo) => (
-                      <Card
-                        key={ngo._id || ngo.id}
-                        className="glass-card p-4 border-orange-500/20"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-xl">
-                            {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">
-                              {ngo.organizationName}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {ngo.address?.city || "Location not specified"}
-                            </p>
-                            <p className="text-xs text-orange-600">
-                              Awaiting response
-                            </p>
-                          </div>
-                          <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pending
-                          </Badge>
-                        </div>
-                      </Card>
-                    ))}
+                  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <AnimatePresence>
+                      {pendingNGOs.map((ngo, index) => (
+                        <motion.div
+                          key={ngo._id || ngo.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <PartnerCard ngo={ngo} status="pending" />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
                 </div>
               )}
 
-              {/* Declined */}
+              {/* Declined - UPDATED WITH DETAILED CARDS */}
               {rejectedNGOs.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                     <AlertCircle className="h-5 w-5 text-red-500" />
                     Declined ({rejectedNGOs.length})
                   </h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {rejectedNGOs.map((ngo) => (
-                      <Card
-                        key={ngo._id || ngo.id}
-                        className="glass-card p-4 border-red-500/20 opacity-60"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-xl bg-red-500/10 flex items-center justify-center text-xl">
-                            {NGO_TYPE_ICONS[ngo.ngoType] || "🤝"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-foreground truncate">
-                              {ngo.organizationName}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {ngo.address?.city || "Location not specified"}
-                            </p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="text-red-500 border-red-500/30"
-                          >
-                            Declined
-                          </Badge>
-                        </div>
-                      </Card>
-                    ))}
+                  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <AnimatePresence>
+                      {rejectedNGOs.map((ngo, index) => (
+                        <motion.div
+                          key={ngo._id || ngo.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <PartnerCard ngo={ngo} status="rejected" />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
                 </div>
               )}
@@ -1004,6 +1071,13 @@ export default function ConnectNGOs() {
                           Unverified
                         </Badge>
                       )}
+                      {/* Show connection status in modal */}
+                      {selectedNGO.connectionStatus === "accepted" && (
+                        <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Connected
+                        </Badge>
+                      )}
                     </DialogTitle>
                     <DialogDescription className="capitalize">
                       {selectedNGO.ngoType?.replace(/_/g, " ")}
@@ -1017,6 +1091,21 @@ export default function ConnectNGOs() {
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
+                {/* Connected Partner Notice */}
+                {selectedNGO.connectionStatus === "accepted" && (
+                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 flex items-start gap-3">
+                    <UserCheck className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                        Active Partner
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        You are connected with this NGO. You can now donate food directly to them.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Unverified Warning */}
                 {!selectedNGO.emailVerified && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
@@ -1204,6 +1293,26 @@ export default function ConnectNGOs() {
               </div>
 
               <DialogFooter className="mt-6">
+                {/* Quick contact buttons for connected partners */}
+                {selectedNGO.connectionStatus === "accepted" && (
+                  <div className="flex gap-2 mr-auto">
+                    {selectedNGO.phoneNumber && (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={`tel:${selectedNGO.phoneNumber}`}>
+                          <Phone className="h-4 w-4 mr-2" />
+                          Call
+                        </a>
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`mailto:${selectedNGO.email}`}>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Email
+                      </a>
+                    </Button>
+                  </div>
+                )}
+                
                 <Button
                   variant="outline"
                   onClick={() => setShowDetailsModal(false)}

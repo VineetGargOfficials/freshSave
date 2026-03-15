@@ -63,6 +63,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import axios from "axios";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface Connection {
+  _id: string;
+  restaurant: {
+    _id: string;
+    organizationName: string;
+    name: string;
+    email: string;
+    phoneNumber?: string;
+    address?: {
+      city?: string;
+      state?: string;
+    };
+  };
+  ngo: string;
+  status: "pending" | "accepted" | "rejected";
+  message?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const NGO_TYPES = [
@@ -101,24 +125,25 @@ const NGO_TYPE_ICONS: Record<string, string> = {
   other: "🤝",
 };
 
-// ── Mock Stats ────────────────────────────────────────────────────────────────
-const MOCK_STATS = {
-  totalMealsCollected: 1248,
-  restaurantPartners: 18,
-  beneficiariesServed: 3200,
-  pendingConnections: 5,
-  co2Saved: "186 kg",
-  totalPickups: 324,
-};
-
 export default function NGOProfile() {
   const navigate = useNavigate();
-  const { user, updateProfile } = useAuth();
+  const { user, token, updateProfile } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+
+  // Connection stats state
+  const [connectionStats, setConnectionStats] = useState({
+    restaurantPartners: 0,
+    pendingConnections: 0,
+    totalMealsCollected: 0,
+    beneficiariesServed: 0,
+    co2Saved: "0 kg",
+    totalPickups: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   // Form state
   const [form, setForm] = useState({
@@ -191,6 +216,49 @@ export default function NGOProfile() {
       });
     }
   }, [user]);
+
+  // Fetch connection statistics
+  useEffect(() => {
+    const fetchConnectionStats = async () => {
+      if (!token) {
+        setLoadingStats(false);
+        return;
+      }
+
+      try {
+        setLoadingStats(true);
+        const response = await axios.get(`${API_URL}/connections/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.data.success) {
+          const connections: Connection[] = response.data.data;
+
+          // Count accepted (connected) and pending connections
+          const accepted = connections.filter((c) => c.status === "accepted");
+          const pending = connections.filter((c) => c.status === "pending");
+
+          setConnectionStats((prev) => ({
+            ...prev,
+            restaurantPartners: accepted.length,
+            pendingConnections: pending.length,
+            // These could be fetched from a separate stats endpoint in the future
+            totalMealsCollected: prev.totalMealsCollected || accepted.length * 50, // Mock calculation
+            beneficiariesServed: prev.beneficiariesServed || accepted.length * 100, // Mock calculation
+            co2Saved: `${accepted.length * 10} kg`, // Mock calculation
+            totalPickups: prev.totalPickups || accepted.length * 20, // Mock calculation
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch connection stats:", error);
+        // Keep default values on error
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchConnectionStats();
+  }, [token]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -303,6 +371,11 @@ export default function NGOProfile() {
 
   const getNgoTypeLabel = (value: string) =>
     NGO_TYPES.find(t => t.value === value)?.label || value;
+
+  // Navigate to Partner Connections page
+  const handleViewPartners = () => {
+    navigate("/ngo/partners");
+  };
 
   return (
     <div className="space-y-6">
@@ -436,22 +509,38 @@ export default function NGOProfile() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="text-center p-3 rounded-xl bg-background/50">
                     <Building2 className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{MOCK_STATS.restaurantPartners}</p>
+                    {loadingStats ? (
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground">{connectionStats.restaurantPartners}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">Partners</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-background/50">
                     <Utensils className="h-5 w-5 text-primary mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{MOCK_STATS.totalMealsCollected}</p>
+                    {loadingStats ? (
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground">{connectionStats.totalMealsCollected}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">Meals</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-background/50">
                     <Users className="h-5 w-5 text-purple-500 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{MOCK_STATS.beneficiariesServed}</p>
+                    {loadingStats ? (
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground">{connectionStats.beneficiariesServed}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">Served</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-background/50">
                     <Leaf className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{MOCK_STATS.co2Saved}</p>
+                    {loadingStats ? (
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground">{connectionStats.co2Saved}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">CO₂ Saved</p>
                   </div>
                 </div>
@@ -493,20 +582,41 @@ export default function NGOProfile() {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">Restaurant Partnerships</h3>
-                <p className="text-sm text-muted-foreground">
-                  You're connected with <span className="font-bold text-blue-500">{MOCK_STATS.restaurantPartners} restaurants</span>
-                  {MOCK_STATS.pendingConnections > 0 && (
-                    <> • <span className="text-amber-500">{MOCK_STATS.pendingConnections} pending requests</span></>
-                  )}
-                </p>
+                {loadingStats ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading connection stats...
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    You're connected with{" "}
+                    <span className="font-bold text-blue-500">
+                      {connectionStats.restaurantPartners} restaurant{connectionStats.restaurantPartners !== 1 ? "s" : ""}
+                    </span>
+                    {connectionStats.pendingConnections > 0 && (
+                      <>
+                        {" "}•{" "}
+                        <span className="text-amber-500 font-medium">
+                          {connectionStats.pendingConnections} pending request{connectionStats.pendingConnections !== 1 ? "s" : ""}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
             <Button
               variant="outline"
               className="border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
+              onClick={handleViewPartners}
             >
               <Heart className="h-4 w-4 mr-2" />
               View Partners
+              {connectionStats.pendingConnections > 0 && (
+                <Badge className="ml-2 bg-amber-500 text-white">
+                  {connectionStats.pendingConnections}
+                </Badge>
+              )}
             </Button>
           </div>
         </Card>

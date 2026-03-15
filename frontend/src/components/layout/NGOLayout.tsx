@@ -97,17 +97,13 @@ export default function NGOLayout() {
                   <User className="h-4 w-4 mr-2" />
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/ngo/profile")}>
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Organization Settings
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/ngo/partners")}>
                   <HandHeart className="h-4 w-4 mr-2" />
                   Partners & Connections
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
-                  Settings
+                  Account Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-500">

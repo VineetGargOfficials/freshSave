@@ -110,11 +110,6 @@ export default function RestaurantLayout() {
                   <HandHeart className="h-4 w-4 mr-2" />
                   Connect with NGOs
                 </DropdownMenuItem>
-                
-                <DropdownMenuItem onClick={() => navigate("/restaurant/settings")}>
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Restaurant Settings
-                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
                   Account Settings
