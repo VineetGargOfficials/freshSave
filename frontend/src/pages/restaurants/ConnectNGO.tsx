@@ -122,9 +122,14 @@ const NGO_TYPE_ICONS: Record<string, string> = {
   other: "🤝",
 };
 
-export default function ConnectNGOs() {
+interface ConnectNGOsProps {
+  hideBackBtn?: boolean;
+}
+
+export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
   const navigate = useNavigate();
   const { user, token } = useAuth();
+
 
   // State
   const [ngos, setNgos] = useState<NGO[]>([]);
@@ -458,13 +463,15 @@ export default function ConnectNGOs() {
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/restaurant")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          {!hideBackBtn && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(user?.role === "restaurant" ? "/restaurant" : "/")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
               <HandHeart className="h-8 w-8 text-rose-500" />
