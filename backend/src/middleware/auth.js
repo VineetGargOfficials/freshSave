@@ -22,14 +22,22 @@ exports.protect = async (req, res, next) => {
     
     // Get user from token
     req.user = await User.findById(decoded.id);
-    
+
     if (!req.user) {
       return res.status(401).json({
         success: false,
         message: 'User not found'
       });
     }
-    
+
+    // Check if email is verified
+    if (!req.user.emailVerified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please verify your email before accessing this resource'
+      });
+    }
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

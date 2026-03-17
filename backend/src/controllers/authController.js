@@ -217,7 +217,10 @@ exports.register = async (req, res) => {
     }
 
     console.log(`✅ User registered: ${user.email} (${user.role})`);
-    sendTokenResponse(user, 201, res, 'Registration successful! Please check your email to verify your account.');
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful! Please check your email to verify your account.'
+    });
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -246,6 +249,14 @@ exports.login = async (req, res) => {
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+      });
     }
 
     console.log(`✅ User logged in: ${user.email} (${user.role})`);
@@ -379,6 +390,7 @@ exports.resetPassword = async (req, res) => {
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
+    user.emailVerified = true; // Proven ownership of email
     await user.save();
 
     sendTokenResponse(user, 200, res, 'Password reset successful');
