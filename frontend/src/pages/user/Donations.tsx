@@ -123,6 +123,7 @@ const parseQuantityInput = (quantity: string) => {
 export default function Donations() {
   const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState("donations");
+  const [showHistory, setShowHistory] = useState(false);
   const [donations, setDonations] = useState<DonationView[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -189,8 +190,18 @@ export default function Donations() {
     return () => window.clearInterval(intervalId);
   }, [token]);
 
+  const activeDonations = useMemo(
+    () => donations.filter((d) => d.status !== "picked_up"),
+    [donations]
+  );
+
+  const historyDonations = useMemo(
+    () => donations.filter((d) => d.status === "picked_up"),
+    [donations]
+  );
+
   const filteredDonations = useMemo(() => {
-    let filtered = donations;
+    let filtered = showHistory ? historyDonations : activeDonations;
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -207,7 +218,7 @@ export default function Donations() {
     }
 
     return filtered;
-  }, [donations, searchQuery, statusFilter]);
+  }, [activeDonations, historyDonations, searchQuery, showHistory, statusFilter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,9 +321,10 @@ export default function Donations() {
   };
 
   const stats = {
-    available: donations.filter((d) => d.status === "available").length,
-    claimed: donations.filter((d) => d.status === "claimed").length,
+    available: activeDonations.filter((d) => d.status === "available").length,
+    claimed: activeDonations.filter((d) => d.status === "claimed").length,
     total: donations.length,
+    history: historyDonations.length,
   };
 
   return (
@@ -398,13 +410,21 @@ export default function Donations() {
           </TabsList>
 
           <div className="hidden sm:flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-rose-500">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "text-muted-foreground hover:text-rose-500",
+                activeTab === "donations" && showHistory && "text-rose-500"
+              )}
+              onClick={() => {
+                setActiveTab("donations");
+                setShowHistory((prev) => !prev);
+                setStatusFilter("all");
+              }}
+            >
               <History className="h-4 w-4 mr-2" /> History
-            </Button>
-            <div className="h-4 w-px bg-border/50 mx-2" />
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-rose-500">
-              <MessageSquare className="h-4 w-4 mr-2" /> My Chats
-            </Button>
+            </Button>            
           </div>
         </div>
 
@@ -415,7 +435,11 @@ export default function Donations() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search listings by donor, food, or location"
+                placeholder={
+                  showHistory
+                    ? "Search picked-up history by donor, food, or location"
+                    : "Search listings by donor, food, or location"
+                }
                 className="pl-10"
               />
             </div>
@@ -425,10 +449,39 @@ export default function Donations() {
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="all">All statuses</option>
-              <option value="available">Available</option>
-              <option value="claimed">Claimed</option>
-              <option value="picked_up">Picked up</option>
+              {showHistory ? (
+                <option value="picked_up">Picked up</option>
+              ) : (
+                <>
+                  <option value="available">Available</option>
+                  <option value="claimed">Claimed</option>
+                </>
+              )}
             </select>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">
+                {showHistory ? "Donation History" : "Food Listings"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {showHistory
+                  ? "Picked-up donations are stored here and removed from the main listing."
+                  : "Only active and claimed donations are shown here."}
+              </p>
+            </div>
+            {showHistory && (
+              <Button variant="outline" size="sm" onClick={() => { setShowHistory(false); setStatusFilter("all"); }}>
+                Back to Listings
+              </Button>
+            )}
+            {!showHistory && (
+              <Button variant="outline" size="sm" className="sm:hidden" onClick={() => { setShowHistory(true); setStatusFilter("all"); }}>
+                <History className="h-4 w-4 mr-2" />
+                History
+              </Button>
+            )}
           </div>
 
           {loading ? (
@@ -461,6 +514,7 @@ export default function Donations() {
                     const StatusIcon = statusConfig[item.status]?.icon || AlertCircle;
                     const isAvailable = item.status === "available";
                     const isOwnListing = item.donorId === user?.id;
+                    const isHistoryItem = item.status === "picked_up";
 
                     return (
                       <motion.div
@@ -541,6 +595,10 @@ export default function Donations() {
                                   <Navigation className="h-4 w-4" />
                                 </Button>
                               </div>
+                            ) : isHistoryItem ? (
+                              <Button disabled className="w-full mt-6 rounded-xl bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                Saved in History
+                              </Button>
                             ) : (
                               <Button disabled className="w-full mt-6 rounded-xl bg-muted/50 text-muted-foreground border-border/50">
                                 {item.status === "claimed" ? "Waiting for Pickup" : "Already Picked Up"}
