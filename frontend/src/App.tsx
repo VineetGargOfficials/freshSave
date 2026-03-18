@@ -20,6 +20,8 @@ import AddFood from "@/pages/user/AddFood";
 import ScanFood from "@/pages/user/ScanFood";
 import RecipeSuggestions from "@/pages/user/RecipeSuggestions";
 import Donations from "@/pages/user/Donations";
+import OffersDiscounts from "@/pages/user/OffersDiscounts";
+import UserProfile from "@/pages/user/UserProfile";
 
 // NGO pages
 import NGODashboard from "@/pages/ngo/NGODashboard";
@@ -235,6 +237,28 @@ function AppRoutes() {
         }
       >
         <Route index element={<Donations />} />
+      </Route>
+
+      <Route
+        path="/offers"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<OffersDiscounts />} />
+      </Route>
+
+      <Route
+        path="/profile"
+        element={
+          <UserProtectedRoute>
+            <Layout />
+          </UserProtectedRoute>
+        }
+      >
+        <Route index element={<UserProfile />} />
       </Route>
 
       {/* ==================== NGO ROUTES ==================== */}

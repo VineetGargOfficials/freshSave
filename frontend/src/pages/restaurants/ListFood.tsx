@@ -48,10 +48,8 @@ const FOOD_CATEGORIES = [
 ];
 
 const LISTING_TYPES = [
-  { id: "regular", label: "Regular", color: "blue" },
-  { id: "surplus", label: "Surplus", color: "orange" },
-  { id: "discount", label: "Discounted", color: "purple" },
   { id: "donation", label: "Donation", color: "green" },
+  { id: "discount", label: "Discounted", color: "purple" },
 ];
 
 const UNITS = ["pieces", "kg", "g", "liters", "ml", "portions", "boxes", "packs"];
@@ -66,6 +64,7 @@ interface Listing {
   price: number;
   discountPercentage: number;
   discountedPrice: number;
+  couponCode?: string;
   expiryDate?: string;
   status: string;
   isAvailable: boolean;
@@ -81,7 +80,7 @@ const defaultForm = {
   quantityAvailable: "",
   unit: "portions",
   expiryDate: "",
-  listingType: "regular",
+  listingType: "donation",
   discountPercentage: "",
   dietary: {
     isVegetarian: false,
@@ -174,6 +173,12 @@ export default function ListFood() {
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => {
+    if (form.listingType === "discount" && form.unit !== "portions") {
+      setForm((prev) => ({ ...prev, unit: "portions" }));
+    }
+  }, [form.listingType, form.unit]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -202,6 +207,14 @@ export default function ListFood() {
       toast({ title: "Validation Error", description: "Quantity must be at least 1.", variant: "destructive" });
       return;
     }
+    if (form.listingType === "discount" && (!form.price || Number(form.price) <= 0)) {
+      toast({ title: "Validation Error", description: "Discounted items need a base price greater than 0.", variant: "destructive" });
+      return;
+    }
+    if (form.listingType === "discount" && (!form.discountPercentage || Number(form.discountPercentage) <= 0)) {
+      toast({ title: "Validation Error", description: "Discounted items need a discount percentage.", variant: "destructive" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -212,8 +225,11 @@ export default function ListFood() {
         listingType: form.listingType,
         quantityAvailable: Number(form.quantityAvailable),
         unit: form.unit,
-        price: form.price ? Number(form.price) : 0,
-        discountPercentage: form.discountPercentage ? Number(form.discountPercentage) : 0,
+        price: form.listingType === "discount" && form.price ? Number(form.price) : 0,
+        discountPercentage:
+          form.listingType === "discount" && form.discountPercentage
+            ? Number(form.discountPercentage)
+            : 0,
         dietary: form.dietary,
       };
       if (form.expiryDate) payload.expiryDate = form.expiryDate;
@@ -283,8 +299,6 @@ export default function ListFood() {
   };
 
   const typeColor: Record<string, string> = {
-    regular: "bg-blue-500/10 text-blue-600",
-    surplus: "bg-orange-500/10 text-orange-600",
     discount: "bg-purple-500/10 text-purple-600",
     donation: "bg-green-500/10 text-green-600",
   };
@@ -473,40 +487,50 @@ export default function ListFood() {
                 </div>
               </div>
 
-              {/* Price + Discount */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="price" className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Price (0 = free)
-                  </Label>
-                  <Input
-                    id="price"
-                    name="price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                  />
-                </div>
-                {(form.listingType === "discount") && (
-                  <div className="space-y-2">
-                    <Label htmlFor="discountPercentage">Discount %</Label>
-                    <Input
-                      id="discountPercentage"
-                      name="discountPercentage"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={form.discountPercentage}
-                      onChange={handleChange}
-                      placeholder="e.g., 30"
-                    />
+              {form.listingType === "discount" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="price" className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Original Price (Rs per portion)
+                      </Label>
+                      <Input
+                        id="price"
+                        name="price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.price}
+                        onChange={handleChange}
+                        placeholder="e.g., 199"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountPercentage">Discount %</Label>
+                      <Input
+                        id="discountPercentage"
+                        name="discountPercentage"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.discountPercentage}
+                        onChange={handleChange}
+                        placeholder="e.g., 30"
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Discounted offers are always priced for 1 portion and will be shown only to users in Offers & Discounts.
+                  </p>
+                </>
+              )}
+
+              {form.listingType === "donation" && (
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Donation listings are shared with NGOs for rescue and pickup.
+                </p>
+              )}
 
               {/* Expiry Date */}
               <div className="space-y-2">
@@ -663,7 +687,12 @@ export default function ListFood() {
                             {listing.price > 0 && (
                               <span className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
-                                ${listing.discountedPrice ?? listing.price}
+                                ₹{listing.discountedPrice ?? listing.price} {listing.listingType === "discount" ? "/ portion" : ""}
+                              </span>
+                            )}
+                            {listing.couponCode && (
+                              <span className="flex items-center gap-1 font-medium text-primary">
+                                Coupon: {listing.couponCode}
                               </span>
                             )}
                             {listing.expiryDate && (

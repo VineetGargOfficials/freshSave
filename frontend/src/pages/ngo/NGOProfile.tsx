@@ -62,6 +62,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import RoleBadges from "@/components/common/RoleBadges";
 import { toast } from "sonner";
 import axios from "axios";
 
@@ -127,7 +128,7 @@ const NGO_TYPE_ICONS: Record<string, string> = {
 
 export default function NGOProfile() {
   const navigate = useNavigate();
-  const { user, token, updateProfile } = useAuth();
+  const { user, token, updateProfile, refreshUser } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
@@ -179,6 +180,10 @@ export default function NGOProfile() {
     twitter: "",
     linkedin: "",
   });
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   // Initialize form with user data
   useEffect(() => {
@@ -569,6 +574,8 @@ export default function NGOProfile() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* RESTAURANT PARTNERS BANNER */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
+      <RoleBadges />
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

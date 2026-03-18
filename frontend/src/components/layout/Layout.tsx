@@ -7,6 +7,7 @@ import {
   Camera,
   ChefHat,
   Heart,
+  TicketPercent,
   Bell,
   User,
   Settings,
@@ -97,6 +98,10 @@ export default function Layout() {
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="h-4 w-4 mr-2" />
                   Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/offers")}>
+                  <TicketPercent className="h-4 w-4 mr-2" />
+                  Offers & Discounts
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="h-4 w-4 mr-2" />

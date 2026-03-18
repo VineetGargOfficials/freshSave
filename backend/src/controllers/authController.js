@@ -45,7 +45,8 @@ const buildUserPayload = (user) => ({
   // Verification
   isVerified: user.isVerified,
   verificationStatus: user.verificationStatus,
-  createdAt: user.createdAt
+  createdAt: user.createdAt,
+  badges: user.badges || []
 });
 
 const sendTokenResponse = (user, statusCode, res, message = 'Success') => {

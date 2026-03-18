@@ -72,6 +72,15 @@ export interface User {
   isVerified?: boolean;
   verificationStatus?: 'pending' | 'under_review' | 'verified' | 'rejected';
   createdAt?: string;
+  badges?: {
+    badgeId: string;
+    title: string;
+    description: string;
+    category: string;
+    color: string;
+    icon: string;
+    awardedAt: string;
+  }[];
 }
 
 interface AuthContextType {
@@ -82,6 +91,7 @@ interface AuthContextType {
   register: (userData: any) => Promise<any>;
   logout: () => void;
   updateUser: (userData: any) => Promise<void>;
+  updateProfile: (userData: any) => Promise<void>;
   refreshUser: () => Promise<void>;
   isUser: boolean;
   isNGO: boolean;
@@ -186,7 +196,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     <AuthContext.Provider value={{
       user, token, loading,
       login, register, logout,
-      updateUser, refreshUser,
+      updateUser, updateProfile: updateUser, refreshUser,
       isUser, isNGO, isRestaurant, isAdmin
     }}>
       {children}

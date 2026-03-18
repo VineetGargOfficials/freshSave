@@ -1,5 +1,6 @@
 const Connection = require('../models/Connection');
 const User = require('../models/User');
+const { recomputeUserBadges } = require('../services/badgeService');
 
 // @desc    Request connection with an NGO
 // @route   POST /api/connections/request
@@ -75,6 +76,10 @@ exports.updateConnectionStatus = async (req, res) => {
 
     connection.status = status;
     await connection.save();
+    await Promise.all([
+      recomputeUserBadges(connection.requester),
+      recomputeUserBadges(connection.ngo)
+    ]);
 
     // Note: Can optionally add logic to push to connectedPartners arrays if you have them in the User model later.
 

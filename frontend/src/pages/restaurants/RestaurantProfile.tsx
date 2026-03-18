@@ -57,6 +57,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import RoleBadges from "@/components/common/RoleBadges";
 import { toast } from "sonner";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ const MOCK_STATS = {
 
 export default function RestaurantProfile() {
   const navigate = useNavigate();
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, refreshUser } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
@@ -138,6 +139,10 @@ export default function RestaurantProfile() {
     twitter: "",
     linkedin: "",
   });
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   // Initialize form with user data
   useEffect(() => {
@@ -458,6 +463,8 @@ export default function RestaurantProfile() {
           </div>
         </Card>
       </motion.div>
+
+      <RoleBadges />
 
       {/* NGO Connections Banner */}
       <motion.div

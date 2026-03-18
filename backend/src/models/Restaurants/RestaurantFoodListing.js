@@ -34,7 +34,7 @@ const restaurantFoodListingSchema = new mongoose.Schema({
   },
   currency: {
     type: String,
-    default: 'USD'
+    default: 'INR'
   },
   quantityAvailable: {
     type: Number,
@@ -67,6 +67,11 @@ const restaurantFoodListingSchema = new mongoose.Schema({
     min: 0,
     max: 100,
     default: 0
+  },
+  couponCode: {
+    type: String,
+    trim: true,
+    uppercase: true
   },
 
   // Dietary info

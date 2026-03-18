@@ -1,6 +1,7 @@
 const Donation = require('../models/IndividualUsers/Donation');
 const FoodItem = require('../models/IndividualUsers/FoodItem');
 const Claim = require('../models/Claim');
+const { recomputeUserBadges } = require('../services/badgeService');
 
 const AUTO_PICKUP_AFTER_MS = 10 * 60 * 1000;
 
@@ -135,6 +136,7 @@ exports.createDonation = async (req, res) => {
     }
     
     const donation = await Donation.create(req.body);
+    await recomputeUserBadges(req.user.id);
     
     res.status(201).json({
       success: true,
@@ -267,6 +269,7 @@ exports.claimDonation = async (req, res) => {
       fulfillmentMethod,
       notes: `NGO choice: ${fulfillmentMethod}`
     });
+    await recomputeUserBadges(req.user.id);
     
     res.status(200).json({
       success: true,

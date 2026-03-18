@@ -2,6 +2,61 @@ const RestaurantFoodListing = require('../models/Restaurants/RestaurantFoodListi
 const FoodItem = require('../models/IndividualUsers/FoodItem');
 const User = require('../models/User');
 const Claim = require('../models/Claim');
+const { recomputeUserBadges } = require('../services/badgeService');
+
+const ALLOWED_LISTING_TYPES = ['donation', 'discount'];
+
+const generateCouponCode = (name = '') => {
+  const prefix = name
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 4)
+    .padEnd(4, 'F');
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `${prefix}-${randomPart}`;
+};
+
+const prepareListingPayload = (payload = {}, existingListing = null) => {
+  const listingType = payload.listingType || existingListing?.listingType || 'donation';
+
+  if (!ALLOWED_LISTING_TYPES.includes(listingType)) {
+    return { error: 'Listing type must be either donation or discount.' };
+  }
+
+  const normalized = {
+    ...payload,
+    listingType
+  };
+
+  if (listingType === 'donation') {
+    normalized.price = 0;
+    normalized.discountPercentage = 0;
+    normalized.couponCode = null;
+    return { data: normalized };
+  }
+
+  const price = Number(normalized.price ?? existingListing?.price ?? 0);
+  const discountPercentage = Number(
+    normalized.discountPercentage ?? existingListing?.discountPercentage ?? 0
+  );
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return { error: 'Discounted listings must have a price greater than 0.' };
+  }
+
+  if (!Number.isFinite(discountPercentage) || discountPercentage <= 0 || discountPercentage > 100) {
+    return { error: 'Discounted listings must have a valid discount percentage greater than 0.' };
+  }
+
+  normalized.price = price;
+  normalized.discountPercentage = discountPercentage;
+  normalized.unit = 'portions';
+  normalized.currency = 'INR';
+  normalized.couponCode =
+    normalized.couponCode || existingListing?.couponCode || generateCouponCode(normalized.name || existingListing?.name);
+
+  return { data: normalized };
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC / USER-FACING
@@ -164,6 +219,7 @@ exports.getRestaurantListings = async (req, res) => {
     if (!isOwner) {
       filter.status = 'active';
       filter.isAvailable = true;
+      filter.listingType = 'donation';
     } else if (status) {
       filter.status = status;
     }
@@ -231,6 +287,7 @@ exports.getConnectedListings = async (req, res) => {
     // 2. Fetch active listings from restaurants
     const restaurantListings = await RestaurantFoodListing.find({
       restaurant: { $in: connectedRestaurantIds },
+      listingType: 'donation',
       status: 'active',
       isAvailable: true
     })
@@ -370,6 +427,7 @@ exports.addListingToFridge = async (req, res) => {
         fulfillmentMethod,
         notes: notes || `Fulfillment: ${fulfillmentMethod}${deliveryAddress ? ` to ${deliveryAddress}` : ''}`
       });
+      await recomputeUserBadges(req.user.id);
     }
 
 
@@ -422,9 +480,16 @@ exports.addListingToFridge = async (req, res) => {
  */
 exports.createListing = async (req, res) => {
   try {
-    req.body.restaurant = req.user.id;
+    const prepared = prepareListingPayload(req.body);
+    if (prepared.error) {
+      return res.status(400).json({ success: false, message: prepared.error });
+    }
 
-    const listing = await RestaurantFoodListing.create(req.body);
+    const listing = await RestaurantFoodListing.create({
+      ...prepared.data,
+      restaurant: req.user.id
+    });
+    await recomputeUserBadges(req.user.id);
 
     res.status(201).json({
       success: true,
@@ -462,11 +527,17 @@ exports.updateListing = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this listing' });
     }
 
+    const prepared = prepareListingPayload(req.body, listing);
+    if (prepared.error) {
+      return res.status(400).json({ success: false, message: prepared.error });
+    }
+
     listing = await RestaurantFoodListing.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      prepared.data,
       { new: true, runValidators: true }
     );
+    await recomputeUserBadges(req.user.id);
 
     res.status(200).json({
       success: true,
@@ -503,6 +574,7 @@ exports.deleteListing = async (req, res) => {
     }
 
     await listing.deleteOne();
+    await recomputeUserBadges(req.user.id);
 
     res.status(200).json({ success: true, message: 'Listing removed successfully' });
   } catch (error) {

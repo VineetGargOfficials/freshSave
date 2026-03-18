@@ -106,48 +106,14 @@ export default function NGOHome() {
       if (isRefreshing) setRefreshing(true);
       else setLoading(true);
 
-      const [resPartners, resIndividuals] = await Promise.all([
-        axios.get(`${API_URL}/restaurants/connected/listings`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${API_URL}/donations?status=available`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
+      const resPartners = await axios.get(`${API_URL}/restaurants/connected/listings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
       const partnerListings = resPartners.data?.success ? resPartners.data.data : [];
-      const individualDonationsRaw = resIndividuals.data?.success ? resIndividuals.data.data : [];
-
-      const partnerIds = new Set(partnerListings.map((l: any) => l._id));
-
-      const communityDonations = individualDonationsRaw
-        .filter((d: any) => !partnerIds.has(d._id))
-        .map((d: any) => ({
-          _id: d._id,
-          name: d.foodDescription.split('\n')[0].substring(0, 40),
-          description: d.foodDescription,
-          category: d.foodType || 'Other',
-          quantity: d.quantity,
-          quantityAvailable: d.quantityAvailable || (typeof d.servings === 'number' ? d.servings : 1),
-          unit: d.unit || 'portions',
-          expiryDate: d.availableUntil,
-          partnerType: 'individual',
-          partner: {
-            _id: d.donor?._id,
-            name: d.donor?.name || d.restaurantName || 'Individual Donor',
-            organizationName: d.restaurantName || d.donor?.organizationName,
-            address: {
-              fullAddress: d.pickupLocation?.address,
-              city: d.pickupLocation?.address?.split(',').slice(-2, -1)[0]?.trim() || 'Nearby'
-            },
-            profileImage: d.donor?.profileImage || null,
-            phoneNumber: d.donor?.phoneNumber
-          },
-          createdAt: d.createdAt
-        }));
 
       const now = Date.now();
-      const combined = [...partnerListings, ...communityDonations]
+      const combined = partnerListings
         .filter((l: any) => !l.expiryDate || new Date(l.expiryDate).getTime() > now)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 

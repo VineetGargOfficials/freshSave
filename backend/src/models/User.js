@@ -166,6 +166,15 @@ const userSchema = new mongoose.Schema({
     },
     expiryReminder: { type: Number, default: 3 }
   },
+  badges: [{
+    badgeId: { type: String, required: true },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    category: { type: String, required: true },
+    color: { type: String, required: true },
+    icon: { type: String, required: true },
+    awardedAt: { type: Date, default: Date.now }
+  }],
 
   // ── Auth tokens ───────────────────────────────────────────────────────────
   resetPasswordToken: String,
