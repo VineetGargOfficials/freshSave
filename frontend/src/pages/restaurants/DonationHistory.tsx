@@ -1,5 +1,5 @@
 // src/pages/restaurants/DonationHistory.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   History,
@@ -23,6 +23,37 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import axios from "axios";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+interface NGO {
+  name: string;
+  organizationName?: string;
+  phoneNumber?: string;
+  email?: string;
+  profileImage?: string;
+  _id?: string;
+}
+
+interface ClaimRecord {
+  _id: string;
+  ngo: NGO;
+  listing: {
+    name: string;
+    unit: string;
+    status: string;
+    category?: string;
+  };
+  quantity: number;
+  unit: string;
+  status: string;
+  fulfillmentMethod?: 'pickup' | 'delivery';
+  claimedAt: string;
+}
 
 const donationHistory = [
   {
@@ -168,24 +199,71 @@ const filterOptions = ["All", "Completed", "Pending", "Expired"];
 const categoryFilters = ["All Categories", "Cooked Food", "Bakery", "Fruits", "Raw Vegetables", "Dairy"];
 
 export default function DonationHistory() {
+  const { token } = useAuth();
+  const [claims, setClaims] = useState<ClaimRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
 
-  const filteredDonations = donationHistory.filter((donation) => {
-    const matchesSearch = donation.food.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      donation.ngo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "All" || donation.status === statusFilter.toLowerCase();
-    const matchesCategory = categoryFilter === "All Categories" || donation.category === categoryFilter;
+  const fetchClaims = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/restaurants/my/claims`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.success) {
+        setClaims(res.data.data);
+      }
+    } catch (err) {
+      console.error("Fetch claims error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClaims();
+    // eslint-disable-next-line
+  }, []);
+
+  const filteredClaims = claims.filter((claim) => {
+    const matchesSearch = 
+      (claim.listing?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (claim.ngo.organizationName || claim.ngo.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Map frontend filter options to backend statuses
+    let matchesStatus = statusFilter === "All";
+    if (statusFilter === "Completed") {
+      matchesStatus = ["completed", "distributed", "picked_up"].includes(claim.status);
+    } else if (statusFilter === "Pending") {
+      matchesStatus = claim.status === "claimed";
+    } else if (statusFilter === "Expired") {
+      matchesStatus = claim.status === "cancelled" || claim.status === "expired";
+    }
+
+    const matchesCategory = categoryFilter === "All Categories" || (claim.listing?.category || "Other") === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
   const stats = {
-    totalDonations: 24,
-    mealsServed: 892,
-    ngosHelped: 8,
-    foodSaved: "156 kg",
+    totalDonations: claims.length,
+    mealsServed: claims.reduce((acc, c) => acc + (c.quantity || 0), 0),
+    ngosHelped: new Set(claims.map(c => c.ngo._id || c.ngo.name)).size,
+    foodSaved: `${claims.reduce((acc, c) => acc + (c.quantity || 0), 0)} Units`,
   };
+
+  const topNGOs = Object.values(
+    claims.reduce((acc, c) => {
+      const id = c.ngo.organizationName || c.ngo.name;
+      if (!acc[id]) {
+        acc[id] = { name: id, donations: 0, meals: 0, icon: "🏢" };
+      }
+      acc[id].donations += 1;
+      acc[id].meals += c.quantity;
+      return acc;
+    }, {} as Record<string, any>)
+  ).sort((a, b) => b.donations - a.donations).slice(0, 4);
 
   return (
     <div className="space-y-6">
@@ -325,84 +403,97 @@ export default function DonationHistory() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <Calendar className="h-5 w-5 text-orange-500" />
-              All Donations
+              All Claims & Donations
             </h2>
             <Badge variant="outline">
-              {filteredDonations.length} records
+              {filteredClaims.length} records
             </Badge>
           </div>
 
-          <div className="space-y-3">
-            {filteredDonations.map((donation, index) => (
-              <motion.div
-                key={donation.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + index * 0.03 }}
-                className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-              >
-                <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center text-2xl shrink-0">
-                  {donation.ngoImage}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-foreground">{donation.food}</p>
-                    <Badge variant="outline" className="text-xs hidden sm:inline-flex">
-                      {donation.category}
-                    </Badge>
+          {loading ? (
+             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+               <Loader2 className="h-10 w-10 animate-spin mb-4" />
+               <p>Fetching your donation history...</p>
+             </div>
+          ) : filteredClaims.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border text-center">
+              <Package className="h-12 w-12 opacity-20 mb-3" />
+              <p className="font-medium">No donation records found</p>
+              <p className="text-xs">Your future claims and donations will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredClaims.map((claim, index) => (
+                <motion.div
+                  key={claim._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + index * 0.03 }}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center text-2xl shrink-0">
+                    🏢
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Package className="h-3 w-3" />
-                      {donation.quantity}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {donation.ngo}
-                    </span>
-                    {donation.status === "completed" && (
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-foreground">{claim.listing?.name || "Unknown Item"}</p>
+                      <Badge variant="outline" className="text-xs hidden sm:inline-flex capitalize">
+                        {claim.listing?.status || claim.status}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <Truck className="h-3 w-3" />
-                        {donation.pickupDuration}
+                        <Package className="h-3 w-3" />
+                        {claim.quantity} {claim.unit || claim.listing?.unit}
                       </span>
-                    )}
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {claim.ngo.organizationName || claim.ngo.name}
+                      </span>
+                      {claim.ngo.phoneNumber && (
+                        <span className="flex items-center gap-1 text-[11px]">
+                          📱 {claim.ngo.phoneNumber}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <Badge
-                    variant="outline"
-                    className={
-                      donation.status === "completed"
-                        ? "text-green-600 border-green-500/30 bg-green-500/10"
-                        : donation.status === "pending"
-                        ? "text-yellow-600 border-yellow-500/30 bg-yellow-500/10"
-                        : "text-red-600 border-red-500/30 bg-red-500/10"
-                    }
-                  >
-                    {donation.status === "completed" ? (
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                    ) : donation.status === "pending" ? (
-                      <Clock className="h-3 w-3 mr-1" />
-                    ) : (
-                      <XCircle className="h-3 w-3 mr-1" />
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                    {claim.fulfillmentMethod && (
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "text-[10px] uppercase font-bold border-none",
+                          claim.fulfillmentMethod === 'pickup' ? "bg-blue-500/10 text-blue-600" : "bg-purple-500/10 text-purple-600"
+                        )}
+                      >
+                        {claim.fulfillmentMethod === 'pickup' ? '🏃 Pickup' : '🚚 Delivery'}
+                      </Badge>
                     )}
-                    {donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {donation.date} • {donation.time}
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon" className="shrink-0 hidden sm:flex">
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </motion.div>
-            ))}
-          </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        claim.status === "completed" || claim.status === "distributed"
+                          ? "text-green-600 border-green-500/30 bg-green-500/10"
+                          : claim.status === "claimed"
+                          ? "text-yellow-600 border-yellow-500/30 bg-yellow-500/10"
+                          : "text-red-600 border-red-500/30 bg-red-500/10"
+                      }
+                    >
+                      {claim.status.charAt(0).toUpperCase() + claim.status.slice(1)}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(claim.claimedAt).toLocaleDateString()} • {new Date(claim.claimedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-border/50">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredDonations.length} of {donationHistory.length} donations
+              Showing {filteredClaims.length} of {claims.length} records
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled>
@@ -428,33 +519,34 @@ export default function DonationHistory() {
             Top NGO Partners
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { name: "Hope Foundation", donations: 8, meals: 280, icon: "🏠" },
-              { name: "Community Kitchen", donations: 6, meals: 245, icon: "🍳" },
-              { name: "Care Center", donations: 5, meals: 198, icon: "💚" },
-              { name: "Children's Home", donations: 5, meals: 169, icon: "👶" },
-            ].map((ngo, index) => (
-              <motion.div
-                key={ngo.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                className="p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-xl">
-                    {ngo.icon}
+            {topNGOs.length === 0 ? (
+              <p className="text-sm text-muted-foreground col-span-full text-center py-4">
+                No NGO partners yet
+              </p>
+            ) : (
+              topNGOs.map((ngo, index) => (
+                <motion.div
+                  key={ngo.name}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + index * 0.05 }}
+                  className="p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-xl">
+                      {ngo.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{ngo.name}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{ngo.name}</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{ngo.donations} donations</span>
+                    <span className="text-green-600 font-medium">{ngo.meals} units</span>
                   </div>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{ngo.donations} donations</span>
-                  <span className="text-green-600 font-medium">{ngo.meals} meals</span>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))
+            )}
           </div>
         </Card>
       </motion.div>

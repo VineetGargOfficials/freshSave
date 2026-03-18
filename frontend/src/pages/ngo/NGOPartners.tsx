@@ -24,10 +24,12 @@ import {
   Star,
   AlertCircle,
   UserCheck,
+  Package,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -90,6 +92,19 @@ interface Connection {
   updatedAt?: string;
 }
 
+interface FoodListing {
+  _id: string;
+  name: string;
+  description: string;
+  category: string;
+  quantityAvailable: number;
+  unit: string;
+  expiryDate?: string;
+  listingType: 'donation' | 'discount';
+  status: string;
+  createdAt: string;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const RESTAURANT_TYPE_ICONS: Record<string, string> = {
   fine_dining: "🍽️",
@@ -110,16 +125,35 @@ export default function NGOPartners() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"connected" | "requests">("connected");
-  
+
   // Modal states
   const [selectedRestaurant, setSelectedRestaurant] = useState<Requester | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
+  // Listings state
+  const [restaurantListings, setRestaurantListings] = useState<FoodListing[]>([]);
+  const [myClaims, setMyClaims] = useState<any[]>([]);
+  const [loadingListings, setLoadingListings] = useState(false);
+
   useEffect(() => {
     fetchConnections();
+    fetchMyClaims();
   }, [token]);
+
+  const fetchMyClaims = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/food`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.success) {
+        setMyClaims(res.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch my claims", error);
+    }
+  };
 
   const fetchConnections = async () => {
     setLoading(true);
@@ -164,6 +198,48 @@ export default function NGOPartners() {
     setSelectedRestaurant(connection.requester);
     setSelectedConnection(connection);
     setShowDetailsModal(true);
+    if (connection.status === "accepted") {
+      fetchRestaurantListings(connection.requester._id);
+    } else {
+      setRestaurantListings([]);
+    }
+  };
+
+  const fetchRestaurantListings = async (restaurantId: string) => {
+    setLoadingListings(true);
+    try {
+      const res = await axios.get(`${API_URL}/restaurants/${restaurantId}/listings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.success) {
+        setRestaurantListings(res.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch restaurant listings", error);
+      toast.error("Failed to load active food listings");
+    } finally {
+      setLoadingListings(false);
+    }
+  };
+
+  const handleClaim = async (listing: FoodListing) => {
+    try {
+      const endpoint = `${API_URL}/restaurants/listings/${listing._id}/add-to-fridge`;
+      const response = await axios.post(endpoint, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        toast.success("Item claimed successfully!");
+        fetchMyClaims(); // Refresh my local claims list
+        if (selectedRestaurant) {
+          fetchRestaurantListings(selectedRestaurant._id);
+        }
+      }
+    } catch (error: any) {
+      console.error("Claim error:", error);
+      toast.error(error.response?.data?.message || "Failed to claim item");
+    }
   };
 
   // Ensure we only show requests where THIS user is the target NGO
@@ -680,22 +756,22 @@ export default function NGOPartners() {
                     )}
                     {(selectedRestaurant.address?.fullAddress ||
                       selectedRestaurant.address?.city) && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 sm:col-span-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm">
-                          {selectedRestaurant.address.fullAddress ||
-                            [
-                              selectedRestaurant.address.street,
-                              selectedRestaurant.address.area,
-                              selectedRestaurant.address.city,
-                              selectedRestaurant.address.state,
-                              selectedRestaurant.address.zipCode,
-                            ]
-                              .filter(Boolean)
-                              .join(", ")}
-                        </span>
-                      </div>
-                    )}
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 sm:col-span-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm">
+                            {selectedRestaurant.address.fullAddress ||
+                              [
+                                selectedRestaurant.address.street,
+                                selectedRestaurant.address.area,
+                                selectedRestaurant.address.city,
+                                selectedRestaurant.address.state,
+                                selectedRestaurant.address.zipCode,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                          </span>
+                        </div>
+                      )}
                   </div>
                 </div>
 
@@ -798,7 +874,7 @@ export default function NGOPartners() {
                     </div>
                     {selectedConnection.status === "accepted" && selectedConnection.updatedAt && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Connected On:</span>
+                        <span className="text-muted-foreground">Partnership Since:</span>
                         <span className="text-foreground">
                           {new Date(selectedConnection.updatedAt).toLocaleDateString("en-IN", {
                             day: "numeric",
@@ -810,6 +886,123 @@ export default function NGOPartners() {
                     )}
                   </div>
                 </div>
+
+                {/* ACTIVE LISTINGS SECTION */}
+                {selectedConnection.status === "accepted" && selectedConnection.requesterRole === 'restaurant' && (
+                  <div className="pt-4 border-t border-border">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-lg flex items-center gap-2">
+                        <Utensils className="h-5 w-5 text-primary" />
+                        Current Food Items
+                        <Badge variant="secondary" className="ml-2">
+                          {restaurantListings.length}
+                        </Badge>
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => fetchRestaurantListings(selectedRestaurant._id)}
+                        disabled={loadingListings}
+                      >
+                        <RefreshCw className={cn("h-3 w-3 mr-1", loadingListings && "animate-spin")} />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    {loadingListings ? (
+                      <div className="py-8 flex flex-col items-center justify-center bg-muted/20 rounded-xl border border-dashed border-border">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
+                        <p className="text-xs text-muted-foreground">Loading listings...</p>
+                      </div>
+                    ) : restaurantListings.length === 0 ? (
+                      <div className="py-8 text-center bg-muted/20 rounded-xl border border-dashed border-border">
+                        <Package className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No active listings from this partner currently.</p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3">
+                        {restaurantListings.map((listing) => (
+                          <div
+                            key={listing._id}
+                            className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-background/50 hover:border-primary/30 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0 mr-4">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h5 className="font-bold text-sm truncate">{listing.name}</h5>
+                                <Badge variant="outline" className="text-[10px] py-0 h-4 uppercase">
+                                  {listing.category}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-1 mb-1">
+                                {listing.description}
+                              </p>
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                <span className="flex items-center gap-1 font-medium text-foreground">
+                                  <Package className="h-3 w-3 text-primary" />
+                                  {listing.quantityAvailable} {listing.unit}
+                                </span>
+                                {listing.expiryDate && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Exp: {new Date(listing.expiryDate).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="shrink-0 h-8 rounded-lg bg-primary text-white hover:bg-primary/90"
+                              onClick={() => handleClaim(listing)}
+                            >
+                              Claim
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-4 text-[10px] text-muted-foreground text-center italic">
+                      Listings shown are currently active and available for pickup.
+                    </p>
+                  </div>
+                )}
+
+                {/* HISTORY / CLAIMED BY US SECTION */}
+                {selectedConnection.status === "accepted" && selectedConnection.requesterRole === 'restaurant' && (
+                  <div className="pt-4 border-t border-border">
+                    <h4 className="font-bold text-lg flex items-center gap-2 mb-4">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      Collection History
+                    </h4>
+
+                    {myClaims.filter(c => c.notes?.includes(selectedRestaurant?.organizationName || '')).length > 0 ? (
+                      <div className="space-y-3">
+                        {myClaims
+                          .filter(c => c.notes?.includes(selectedRestaurant?.organizationName || ''))
+                          .map((claim) => (
+                            <div
+                              key={claim._id}
+                              className="p-3 rounded-xl bg-green-500/5 border border-green-500/10 flex items-center justify-between"
+                            >
+                              <div>
+                                <p className="text-sm font-bold text-foreground">{claim.name}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Rescued on {new Date(claim.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <Badge className="bg-green-500/10 text-green-600 border-none text-[10px]">
+                                Collected
+                              </Badge>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="py-6 bg-muted/10 border border-border rounded-2xl text-center">
+                        <p className="text-xs text-muted-foreground italic">You haven't collected any items from this partner yet.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <DialogFooter className="mt-6">

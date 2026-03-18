@@ -49,6 +49,25 @@ interface Listing {
   createdAt: string;
 }
 
+interface ClaimRecord {
+  _id: string;
+  ngo: {
+    name: string;
+    organizationName?: string;
+    phoneNumber?: string;
+    email?: string;
+  };
+  listing: {
+    name: string;
+    unit: string;
+  };
+  quantity: number;
+  unit: string;
+  status: string;
+  fulfillmentMethod?: 'pickup' | 'delivery';
+  claimedAt: string;
+}
+
 interface Stats {
   total: number;
   active: number;
@@ -81,6 +100,7 @@ export default function RestaurantDashboard() {
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
@@ -91,17 +111,21 @@ export default function RestaurantDashboard() {
       });
       const restaurantId = profileRes.data.user?.id || profileRes.data.user?._id;
 
-      const [listingsRes, statsRes] = await Promise.all([
+      const [listingsRes, statsRes, claimsRes] = await Promise.all([
         axios.get(`${API_URL}/restaurants/${restaurantId}/listings`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         axios.get(`${API_URL}/restaurants/my/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        axios.get(`${API_URL}/restaurants/my/claims`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       if (listingsRes.data.success) setListings(listingsRes.data.data);
       if (statsRes.data.success) setStats(statsRes.data.stats);
+      if (claimsRes.data.success) setClaims(claimsRes.data.data);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -534,6 +558,124 @@ export default function RestaurantDashboard() {
           </Card>
         </motion.div>
       </div>
+
+      {/* NGO Claims & Activities Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="glass-card p-6 border-primary/20 bg-primary/5">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <Users className="h-6 w-6 text-primary" />
+              NGO Claims & Activities
+              {claims.length > 0 && (
+                <Badge className="bg-primary/20 text-primary border-none ml-2">
+                  {claims.length} New
+                </Badge>
+              )}
+            </h2>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-primary font-bold"
+              onClick={() => navigate("/restaurant/history")}
+            >
+              View Claim History
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+
+          {claims.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 bg-background/40 rounded-2xl border border-dashed border-border text-center">
+              <Users className="h-10 w-10 text-muted-foreground/30 mb-2" />
+              <p className="text-muted-foreground font-medium">No claims from NGO partners yet</p>
+              <p className="text-xs text-muted-foreground/60">When NGOs claim your food, they will appear here</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {claims.map((claim, index) => (
+                <motion.div
+                  key={claim._id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 + index * 0.05 }}
+                  className="p-4 rounded-xl bg-background border border-border shadow-sm hover:shadow-md transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-xl shadow-inner">
+                      🏢
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/20">
+                        {claim.status}
+                      </Badge>
+                      {claim.fulfillmentMethod && (
+                        <Badge variant="secondary" className="text-[9px] uppercase font-bold bg-blue-500/5 text-blue-600 border-blue-500/10">
+                          {claim.fulfillmentMethod === 'pickup' ? '🏃 Pickup' : '🚚 Delivery'}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-foreground truncate">{claim.ngo.organizationName || claim.ngo.name}</h4>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    <Users className="h-3 w-3" />
+                    <span>NGO Partner</span>
+                  </div>
+                  
+                  <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Item Claimed</span>
+                      <span className="text-[10px] font-bold text-primary">
+                        {claim.quantity} {claim.unit || claim.listing.unit}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {claim.listing?.name || "Unknown Item"}
+                    </p>
+                  </div>
+
+                    <div className="flex flex-col gap-1 mt-3">
+                      {claim.ngo.phoneNumber && (
+                        <a 
+                          href={`tel:${claim.ngo.phoneNumber}`}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+                        >
+                          📞 {claim.ngo.phoneNumber}
+                        </a>
+                      )}
+                      {claim.ngo.email && (
+                        <a 
+                          href={`mailto:${claim.ngo.email}`}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium truncate"
+                        >
+                          ✉️ {claim.ngo.email}
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50 text-[10px] text-muted-foreground font-medium">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(claim.claimedAt).toLocaleDateString()}
+                      </span>
+                      <button 
+                        className="text-primary hover:underline font-bold"
+                        onClick={() => {
+                          if (claim.ngo.email) window.location.href = `mailto:${claim.ngo.email}`;
+                          else if (claim.ngo.phoneNumber) window.location.href = `tel:${claim.ngo.phoneNumber}`;
+                        }}
+                      >
+                        Contact NGO
+                      </button>
+                    </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </motion.div>
 
       {/* Breakdown by Category */}
       {stats && Object.keys(stats.byCategory).length > 0 && (
