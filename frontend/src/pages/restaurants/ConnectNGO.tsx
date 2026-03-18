@@ -129,6 +129,13 @@ interface ConnectNGOsProps {
 export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const requesterName = user?.organizationName || user?.name || "This account";
+  const requesterRoleLabel = user?.role === "restaurant" ? "restaurant" : "profile";
+  const requesterPrimaryLabel = user?.role === "restaurant" ? "Restaurant name" : "Name";
+  const partnerActionCopy =
+    user?.role === "restaurant"
+      ? "Discover and partner with organizations to donate your surplus food"
+      : "Discover and partner with organizations that can receive your food donations";
 
 
   // State
@@ -158,15 +165,15 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
   const fetchNGOs = async () => {
     setLoading(true);
     try {
-      const restaurantCity = user?.address?.city || "";
-      const restaurantState = user?.address?.state || "";
+      const requesterCity = user?.address?.city || "";
+      const requesterState = user?.address?.state || "";
 
       const params: any = {
         radius: searchRadius,
       };
 
-      if (restaurantCity) params.city = restaurantCity;
-      if (restaurantState) params.state = restaurantState;
+      if (requesterCity) params.city = requesterCity;
+      if (requesterState) params.state = requesterState;
       if (ngoTypeFilter !== "all") params.type = ngoTypeFilter;
 
       console.log("[ConnectNGO] Fetching with params:", params);
@@ -260,7 +267,9 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
       const ngoIdToConnect = selectedNGO._id || selectedNGO.id;
       const payload = {
         ngoId: ngoIdToConnect,
-        message: connectMessage || `Hello, ${user?.organizationName || user?.name} would like to connect with your NGO.`
+        message:
+          connectMessage ||
+          `Hello, ${requesterName} would like to connect with your NGO for food donation coordination.`
       };
 
       const res = await axios.post(`${API_URL}/connections/request`, payload, {
@@ -478,7 +487,7 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
               Connect with NGOs
             </h1>
             <p className="text-muted-foreground mt-1">
-              Discover and partner with organizations to donate your surplus food
+              {partnerActionCopy}
             </p>
           </div>
         </div>
@@ -964,7 +973,7 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
                 No Connections Yet
               </h3>
               <p className="text-muted-foreground mb-4">
-                Start connecting with NGOs to donate your surplus food
+                Start connecting with NGOs to coordinate food donations
               </p>
               <Button
                 onClick={() => setActiveTab("discover")}
@@ -1107,7 +1116,7 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
                         Active Partner
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        You are connected with this NGO. You can now donate food directly to them.
+                        You are connected with this NGO. You can now coordinate food donations directly with them.
                       </p>
                     </div>
                   </div>
@@ -1358,7 +1367,7 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
             </DialogTitle>
             <DialogDescription>
               Send a connection request to partner with this NGO for food
-              donations.
+              donation coordination.
             </DialogDescription>
           </DialogHeader>
 
@@ -1394,31 +1403,35 @@ export default function ConnectNGOs({ hideBackBtn = false }: ConnectNGOsProps) {
               </Label>
               <Textarea
                 id="message"
-                placeholder="Introduce yourself and your restaurant. Let them know about your surplus food and how you'd like to partner..."
+                placeholder={
+                  user?.role === "restaurant"
+                    ? "Introduce yourself and your restaurant. Let them know about your surplus food and how you'd like to partner..."
+                    : "Introduce yourself, mention the food you usually donate, and explain how you'd like to partner..."
+                }
                 value={connectMessage}
                 onChange={(e) => setConnectMessage(e.target.value)}
                 rows={4}
               />
               <p className="text-xs text-muted-foreground">
-                A good introduction helps NGOs understand your donation
-                capacity.
+                A good introduction helps NGOs understand your donation plans and pickup coordination needs.
               </p>
             </div>
 
-            {/* Restaurant Info Preview */}
+            {/* Requester Info Preview */}
             <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
               <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-2">
                 Your request will include:
               </p>
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>
-                  • Restaurant name: {user?.organizationName || user?.name}
+                  • {requesterPrimaryLabel}: {requesterName}
                 </li>
                 <li>• Contact email: {user?.email}</li>
                 {user?.phoneNumber && <li>• Phone: {user?.phoneNumber}</li>}
                 {user?.address?.city && (
                   <li>• Location: {user?.address?.city}</li>
                 )}
+                <li>• Account type: {requesterRoleLabel}</li>
               </ul>
             </div>
           </div>

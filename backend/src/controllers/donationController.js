@@ -2,6 +2,51 @@ const Donation = require('../models/IndividualUsers/Donation');
 const FoodItem = require('../models/IndividualUsers/FoodItem');
 const Claim = require('../models/Claim');
 
+const AUTO_PICKUP_AFTER_MS = 10 * 60 * 1000;
+
+const syncAutoPickedUpStatus = async (donations) => {
+  const donationList = Array.isArray(donations) ? donations : [donations];
+  const now = Date.now();
+  const updates = [];
+
+  for (const donation of donationList) {
+    if (!donation || donation.status !== 'claimed' || !donation.claimedAt) {
+      continue;
+    }
+
+    const claimedAt = new Date(donation.claimedAt).getTime();
+    if (Number.isNaN(claimedAt) || now - claimedAt < AUTO_PICKUP_AFTER_MS) {
+      continue;
+    }
+
+    donation.status = 'picked_up';
+    donation.pickupTime = donation.pickupTime || new Date(claimedAt + AUTO_PICKUP_AFTER_MS);
+
+    updates.push(
+      donation.save(),
+      Claim.updateMany(
+        {
+          listing: donation._id,
+          listingModel: 'Donation',
+          status: 'claimed'
+        },
+        {
+          $set: {
+            status: 'picked_up',
+            pickupTime: donation.pickupTime
+          }
+        }
+      )
+    );
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
+  }
+
+  return donations;
+};
+
 // @desc    Get all donations
 // @route   GET /api/donations
 // @access  Public
@@ -15,6 +60,8 @@ exports.getDonations = async (req, res) => {
     const donations = await Donation.find(query)
       .populate('donor', 'name organizationName')
       .sort({ createdAt: -1 });
+
+    await syncAutoPickedUpStatus(donations);
     
     // Ensure all listings have a quantityAvailable field for frontend compatibility
     const processedDonations = donations.map(d => {
@@ -55,6 +102,8 @@ exports.getDonation = async (req, res) => {
         message: 'Donation not found'
       });
     }
+
+    await syncAutoPickedUpStatus(donation);
     
     res.status(200).json({
       success: true,
@@ -315,6 +364,8 @@ exports.getMyDonations = async (req, res) => {
     const donations = await Donation.find({ donor: req.user.id })
       .populate('claimedBy', 'name organizationName')
       .sort({ createdAt: -1 });
+
+    await syncAutoPickedUpStatus(donations);
     
     res.status(200).json({
       success: true,
@@ -339,6 +390,8 @@ exports.getMyClaims = async (req, res) => {
     const donations = await Donation.find({ claimedBy: req.user.id })
       .populate('donor', 'name organizationName phoneNumber')
       .sort({ claimedAt: -1 });
+
+    await syncAutoPickedUpStatus(donations);
     
     res.status(200).json({
       success: true,
