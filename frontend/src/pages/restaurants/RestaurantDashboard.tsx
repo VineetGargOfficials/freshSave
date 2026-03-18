@@ -93,6 +93,19 @@ const typeColor: Record<string, string> = {
   donation: "bg-green-500/10 text-green-600",
 };
 
+// Returns true if a listing is expired based on either status or expiryDate
+function isExpired(listing: Listing): boolean {
+  if (listing.status === "expired") return true;
+  if (listing.expiryDate && new Date(listing.expiryDate) < new Date()) return true;
+  return false;
+}
+
+// Resolve the display status of a listing, accounting for client-side expiry check
+function resolvedStatus(listing: Listing): string {
+  if (isExpired(listing)) return "expired";
+  return listing.status;
+}
+
 export default function RestaurantDashboard() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -153,7 +166,6 @@ export default function RestaurantDashboard() {
               : l
           )
         );
-        // Refresh stats
         const statsRes = await axios.get(`${API_URL}/restaurants/my/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -165,10 +177,15 @@ export default function RestaurantDashboard() {
     }
   };
 
-  const activeListings = listings.filter((l) => l.status === "active");
-  const recentListings = [...listings].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  ).slice(0, 5);
+  // ── Fix 1: exclude expired items from Active Listings ──────────────────────
+  const activeListings = listings.filter(
+    (l) => l.status === "active" && !isExpired(l)
+  );
+
+  // ── Fix 2: recent listings still show all, but status is resolved correctly ─
+  const recentListings = [...listings]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
 
   const statCards = [
     {
@@ -181,16 +198,16 @@ export default function RestaurantDashboard() {
     },
     {
       label: "Active Now",
-      value: stats?.active ?? 0,
+      value: activeListings.length,
       sub: `${stats?.soldOut ?? 0} sold out`,
       icon: CheckCircle2,
       color: "text-green-500",
       bgColor: "bg-green-500/10",
     },
     {
-      label: "Reservations",
-      value: stats?.totalReservations ?? 0,
-      sub: "Total add-to-fridge",
+      label: "NGO Claims",
+      value: claims.length,
+      sub: "Total claims by NGOs",
       icon: TrendingUp,
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
@@ -354,7 +371,7 @@ export default function RestaurantDashboard() {
 
       {/* Main Grid: Active Listings + Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Active Listings – LIVE from API */}
+        {/* Active Listings */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -506,43 +523,67 @@ export default function RestaurantDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentListings.map((listing, index) => (
-                  <motion.div
-                    key={listing._id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.35 + index * 0.06 }}
-                    className="flex gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                      <Utensils className="h-4 w-4 text-orange-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{listing.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {listing.quantityAvailable} {listing.unit} ·{" "}
-                        <span className={statusColor[listing.status]?.split(" ")[1] ?? ""}>
-                          {listing.status.replace("_", " ")}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground/60">
-                        {new Date(listing.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="shrink-0">
-                      <button
-                        onClick={() => handleToggle(listing._id)}
-                        className="p-1 rounded hover:bg-muted"
+                {recentListings.map((listing, index) => {
+                  // ── Fix 2: use resolved status so expired items never show "active" ──
+                  const displayStatus = resolvedStatus(listing);
+                  return (
+                    <motion.div
+                      key={listing._id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.35 + index * 0.06 }}
+                      className="flex gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      <div
+                        className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          displayStatus === "expired"
+                            ? "bg-gray-500/10"
+                            : "bg-orange-500/10"
+                        }`}
                       >
-                        {listing.isAvailable ? (
-                          <ToggleRight className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <ToggleLeft className="h-4 w-4 text-gray-400" />
+                        <Utensils
+                          className={`h-4 w-4 ${
+                            displayStatus === "expired" ? "text-gray-400" : "text-orange-500"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {listing.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {listing.quantityAvailable} {listing.unit} ·{" "}
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1 py-0 border-0 inline-flex ${
+                              statusColor[displayStatus] ?? ""
+                            }`}
+                          >
+                            {displayStatus.replace("_", " ")}
+                          </Badge>
+                        </p>
+                        <p className="text-xs text-muted-foreground/60">
+                          {new Date(listing.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        {/* Don't show toggle for expired items */}
+                        {displayStatus !== "expired" && (
+                          <button
+                            onClick={() => handleToggle(listing._id)}
+                            className="p-1 rounded hover:bg-muted"
+                          >
+                            {listing.isAvailable ? (
+                              <ToggleRight className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <ToggleLeft className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
                         )}
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 
@@ -576,9 +617,9 @@ export default function RestaurantDashboard() {
                 </Badge>
               )}
             </h2>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-primary font-bold"
               onClick={() => navigate("/restaurant/history")}
             >
@@ -623,7 +664,7 @@ export default function RestaurantDashboard() {
                     <Users className="h-3 w-3" />
                     <span>NGO Partner</span>
                   </div>
-                  
+
                   <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border/50">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-[10px] uppercase font-bold text-muted-foreground">Item Claimed</span>
@@ -636,40 +677,31 @@ export default function RestaurantDashboard() {
                     </p>
                   </div>
 
-                    <div className="flex flex-col gap-1 mt-3">
-                      {claim.ngo.phoneNumber && (
-                        <a 
-                          href={`tel:${claim.ngo.phoneNumber}`}
-                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
-                        >
-                          📞 {claim.ngo.phoneNumber}
-                        </a>
-                      )}
-                      {claim.ngo.email && (
-                        <a 
-                          href={`mailto:${claim.ngo.email}`}
-                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium truncate"
-                        >
-                          ✉️ {claim.ngo.email}
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50 text-[10px] text-muted-foreground font-medium">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(claim.claimedAt).toLocaleDateString()}
-                      </span>
-                      <button 
-                        className="text-primary hover:underline font-bold"
-                        onClick={() => {
-                          if (claim.ngo.email) window.location.href = `mailto:${claim.ngo.email}`;
-                          else if (claim.ngo.phoneNumber) window.location.href = `tel:${claim.ngo.phoneNumber}`;
-                        }}
+                  <div className="flex flex-col gap-1 mt-3">
+                    {claim.ngo.phoneNumber && (
+                      <a
+                        href={`tel:${claim.ngo.phoneNumber}`}
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
                       >
-                        Contact NGO
-                      </button>
-                    </div>
+                        📞 {claim.ngo.phoneNumber}
+                      </a>
+                    )}
+                    {claim.ngo.email && (
+                      <a
+                        href={`mailto:${claim.ngo.email}`}
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium truncate"
+                      >
+                        ✉️ {claim.ngo.email}
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50 text-[10px] text-muted-foreground font-medium">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(claim.claimedAt).toLocaleDateString()}
+                    </span>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -704,7 +736,7 @@ export default function RestaurantDashboard() {
         </motion.div>
       )}
 
-      {/* No data state - first time user */}
+      {/* No data state */}
       {!loading && listings.length === 0 && (
         <motion.div
           initial={{ opacity: 0 }}

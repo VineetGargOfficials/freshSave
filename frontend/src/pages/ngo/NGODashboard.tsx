@@ -83,44 +83,10 @@ interface ClaimedItem {
   claimedAt: string;
 }
 
-const stats = [
-  { label: "Meals Collected", value: "1,248", change: "+156", icon: Utensils, color: "text-green-500", bgColor: "bg-green-500/10" },
-  { label: "Partner Organizations", value: "18", change: "+3", icon: Building2, color: "text-blue-500", bgColor: "bg-blue-500/10" },
-  { label: "Active Volunteers", value: "24", change: "+2", icon: Users, color: "text-purple-500", bgColor: "bg-purple-500/10" },
-  { label: "Today's Pickups", value: "5", change: "Scheduled", icon: Clock, color: "text-orange-500", bgColor: "bg-orange-500/10" },
-];
-
-const quickInsights = [
-  {
-    title: "This Week's Impact",
-    value: "348 meals",
-    subtitle: "Served to 156 people",
-    icon: <TrendingUp className="h-5 w-5" />,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
-  },
-  {
-    title: "CO2 Saved",
-    value: "52 kg",
-    subtitle: "Environmental impact",
-    icon: <Leaf className="h-5 w-5" />,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-500/10",
-  },
-  {
-    title: "Monthly Goal",
-    value: "348/400",
-    subtitle: "87% complete",
-    icon: <Target className="h-5 w-5" />,
-    color: "text-orange-500",
-    bgColor: "bg-orange-500/10",
-  },
-];
-
 export default function NGOHome() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  
+
   const [listings, setListings] = useState<FoodListing[]>([]);
   const [myClaims, setMyClaims] = useState<ClaimedItem[]>([]);
   const [claimQuantities, setClaimQuantities] = useState<Record<string, number>>({});
@@ -152,9 +118,8 @@ export default function NGOHome() {
       const partnerListings = resPartners.data?.success ? resPartners.data.data : [];
       const individualDonationsRaw = resIndividuals.data?.success ? resIndividuals.data.data : [];
 
-      // Deduplicate: If an item is already in partnerListings (connected), don't add it from public donations
       const partnerIds = new Set(partnerListings.map((l: any) => l._id));
-      
+
       const communityDonations = individualDonationsRaw
         .filter((d: any) => !partnerIds.has(d._id))
         .map((d: any) => ({
@@ -181,12 +146,12 @@ export default function NGOHome() {
           createdAt: d.createdAt
         }));
 
-      const combined = [...partnerListings, ...communityDonations].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      const now = Date.now();
+      const combined = [...partnerListings, ...communityDonations]
+        .filter((l: any) => !l.expiryDate || new Date(l.expiryDate).getTime() > now)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       setListings(combined);
-      // Store partner count for debug info
       (window as any)._partnerCount = partnerListings.length;
     } catch (error: any) {
       console.error("[NGODashboard] Failed to fetch listings:", error);
@@ -225,7 +190,7 @@ export default function NGOHome() {
           quantity: f.quantity,
           status: f.status,
           expiryDate: f.expiryDate,
-          partnerName: f.notes?.includes('Added from') 
+          partnerName: f.notes?.includes('Added from')
             ? f.notes.split('Added from ')[1]?.split(' restaurant')[0] || 'Restaurant'
             : 'Restaurant Partner',
           partnerType: 'restaurant' as const,
@@ -257,21 +222,18 @@ export default function NGOHome() {
 
   const handleClaim = async () => {
     if (!selectedListing) return;
-    
+
     try {
       setIsClaiming(true);
       const isRestaurant = selectedListing.partnerType === 'restaurant';
-      const endpoint = isRestaurant 
+      const endpoint = isRestaurant
         ? `${API_URL}/restaurants/listings/${selectedListing._id}/add-to-fridge`
         : `${API_URL}/donations/${selectedListing._id}/claim`;
 
-      // Get the requested quantity
       const quantityToClaim = claimQuantities[selectedListing._id] || 1;
-
-      // Restaurant uses POST, Individual uses PUT
       const method = isRestaurant ? axios.post : axios.put;
-      
-      const response = await method(endpoint, { 
+
+      const response = await method(endpoint, {
         quantity: quantityToClaim,
         fulfillmentMethod: fulfillmentMethod,
         notes: `NGO choice: ${fulfillmentMethod}`
@@ -282,7 +244,7 @@ export default function NGOHome() {
       if (response.data.success) {
         toast.success(isRestaurant ? "Item added to your collection!" : "Donation claimed successfully!");
         setIsClaimModalOpen(false);
-        fetchListings(true); 
+        fetchListings(true);
         fetchClaims();
         setActiveView('claimed');
       }
@@ -303,7 +265,7 @@ export default function NGOHome() {
   const handleUpdateClaimStatus = async (claim: ClaimedItem) => {
     try {
       const isRestaurant = claim.partnerType === 'restaurant';
-      const endpoint = isRestaurant 
+      const endpoint = isRestaurant
         ? `${import.meta.env.VITE_API_URL}/food/${claim._id}/consume`
         : `${import.meta.env.VITE_API_URL}/donations/${claim._id}/pickup`;
 
@@ -321,12 +283,86 @@ export default function NGOHome() {
     }
   };
 
-  // Calculate dynamic stats
+  // ── Dynamic stats ─────────────────────────────────────────────────────────
   const dynamicStats = [
-    { label: "Items Claimed", value: myClaims.length.toString(), change: `+${myClaims.filter(c => new Date(c.claimedAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}`, icon: Utensils, color: "text-green-500", bgColor: "bg-green-500/10" },
-    { label: "Available Items", value: listings.length.toString(), change: "Live", icon: Building2, color: "text-blue-500", bgColor: "bg-blue-500/10" },
-    { label: "Active Volunteers", value: "24", change: "+2", icon: Users, color: "text-purple-500", bgColor: "bg-purple-500/10" },
-    { label: "Today's Pickups", value: myClaims.filter(c => c.status === 'claimed').length.toString(), change: "Scheduled", icon: Clock, color: "text-orange-500", bgColor: "bg-orange-500/10" },
+    {
+      label: "Items Claimed",
+      value: myClaims.length.toString(),
+      change: `+${myClaims.filter(c => new Date(c.claimedAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}`,
+      icon: Utensils,
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+    },
+    {
+      label: "Available Items",
+      value: listings.length.toString(),
+      change: "Live",
+      icon: Building2,
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10",
+    },
+    {
+      label: "Active Volunteers",
+      value: "24",
+      change: "+2",
+      icon: Users,
+      color: "text-purple-500",
+      bgColor: "bg-purple-500/10",
+    },
+    {
+      label: "Today's Pickups",
+      value: myClaims.filter(c => {
+        const claimedDate = new Date(c.claimedAt);
+        const today = new Date();
+        return (
+          claimedDate.getFullYear() === today.getFullYear() &&
+          claimedDate.getMonth() === today.getMonth() &&
+          claimedDate.getDate() === today.getDate()
+        );
+      }).length.toString(),
+      change: "Today",
+      icon: Clock,
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+    },
+  ];
+
+  // ── Dynamic Quick Insights ────────────────────────────────────────────────
+  const thisWeekClaims = myClaims.filter(
+    (c) => new Date(c.claimedAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000
+  );
+  const thisMonthClaims = myClaims.filter(
+    (c) => new Date(c.claimedAt).getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000
+  );
+  const completedClaims = myClaims.filter(
+    (c) => c.status === "picked_up" || c.status === "consumed" || c.status === "distributed"
+  );
+
+  const quickInsights = [
+    {
+      title: "This Week's Claims",
+      value: `${thisWeekClaims.length} items`,
+      subtitle: thisWeekClaims.length === 0 ? "No activity this week" : "Claimed this week",
+      icon: <TrendingUp className="h-5 w-5" />,
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+    },
+    {
+      title: "Available Now",
+      value: `${listings.length} listings`,
+      subtitle: `${listings.filter(l => l.partnerType === 'restaurant').length} from partners`,
+      icon: <Leaf className="h-5 w-5" />,
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/10",
+    },
+    {
+      title: "Monthly Activity",
+      value: `${thisMonthClaims.length} claims`,
+      subtitle: `${completedClaims.length} completed total`,
+      icon: <Target className="h-5 w-5" />,
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+    },
   ];
 
   return (
@@ -350,10 +386,10 @@ export default function NGOHome() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => fetchListings(true)} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchListings(true)}
             disabled={refreshing}
             className="rounded-full h-10 px-4"
           >
@@ -367,7 +403,7 @@ export default function NGOHome() {
         </div>
       </motion.div>
 
-      {/* New Donations Alert (Only if there are listings) */}
+      {/* New Donations Alert */}
       <AnimatePresence>
         {listings.length > 0 && (
           <motion.div
@@ -387,7 +423,7 @@ export default function NGOHome() {
                     <p className="text-muted-foreground">Items from your connected partners are ready for collection.</p>
                   </div>
                 </div>
-                <Button 
+                <Button
                   className="bg-blue-600 hover:bg-blue-700 text-white font-semibold h-12 px-8 rounded-xl shadow-lg shadow-blue-600/20 w-full sm:w-auto"
                 >
                   View All
@@ -445,18 +481,19 @@ export default function NGOHome() {
               <ArrowRight className="h-4 w-4 ml-1.5" />
             </Button>
           </div>
+
           <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-full border border-border/50">
-            <Button 
-              variant={activeView === 'available' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeView === 'available' ? 'default' : 'ghost'}
+              size="sm"
               onClick={() => setActiveView('available')}
               className={cn("rounded-full px-5", activeView === 'available' && "bg-primary text-white shadow-md")}
             >
               Available
             </Button>
-            <Button 
-              variant={activeView === 'claimed' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeView === 'claimed' ? 'default' : 'ghost'}
+              size="sm"
               onClick={() => setActiveView('claimed')}
               className={cn("rounded-full px-5", activeView === 'claimed' && "bg-primary text-white shadow-md")}
             >
@@ -491,8 +528,8 @@ export default function NGOHome() {
                   onClick={() => setListingFilter(f.id as any)}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0",
-                    listingFilter === f.id 
-                      ? "bg-primary/10 text-primary border-primary/30" 
+                    listingFilter === f.id
+                      ? "bg-primary/10 text-primary border-primary/30"
                       : "bg-background text-muted-foreground border-border hover:border-primary/20"
                   )}
                 >
@@ -553,10 +590,10 @@ export default function NGOHome() {
                   )}
                   <div className="grid sm:grid-cols-2 gap-4">
                     {filteredListings.map((listing, index) => {
-                      const partnerName = listing.partnerType === 'restaurant' 
-                        ? listing.partner.organizationName || listing.partner.name 
+                      const partnerName = listing.partnerType === 'restaurant'
+                        ? listing.partner.organizationName || listing.partner.name
                         : listing.partner.name;
-                      
+
                       return (
                         <motion.div
                           key={listing._id}
@@ -565,7 +602,6 @@ export default function NGOHome() {
                           transition={{ delay: index * 0.1 }}
                         >
                           <Card className="glass-card overflow-hidden group border-border/50 hover:border-primary/30 transition-all hover:shadow-lg shadow-primary/5">
-                            {/* Header with status/image placeholder */}
                             <div className="h-24 bg-gradient-to-br from-primary/5 to-transparent p-4 flex justify-between items-start">
                               <div className="h-12 w-12 rounded-xl bg-white/80 backdrop-blur shadow-sm flex items-center justify-center text-2xl font-bold">
                                 {listing.partner.profileImage ? (
@@ -577,8 +613,8 @@ export default function NGOHome() {
                               <div className="flex flex-col items-end gap-1">
                                 <Badge className={cn(
                                   "border-none font-bold px-3 py-1 text-[10px] uppercase tracking-wider",
-                                  listing.partnerType === 'restaurant' 
-                                    ? "bg-blue-500/10 text-blue-600" 
+                                  listing.partnerType === 'restaurant'
+                                    ? "bg-blue-500/10 text-blue-600"
                                     : "bg-purple-500/10 text-purple-600"
                                 )}>
                                   {listing.partnerType === 'restaurant' ? 'Restaurant Partner' : 'Community Donor'}
@@ -588,7 +624,7 @@ export default function NGOHome() {
                                 </Badge>
                               </div>
                             </div>
-  
+
                             <div className="p-5">
                               <div className="mb-4">
                                 <h3 className="font-bold text-lg text-foreground truncate group-hover:text-primary transition-colors">
@@ -599,7 +635,7 @@ export default function NGOHome() {
                                   {getTimeRemaining(listing.expiryDate)}
                                 </p>
                               </div>
-  
+
                               <div className="space-y-2.5 mb-6">
                                 <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
                                   {listing.partnerType === 'restaurant' ? (
@@ -618,16 +654,16 @@ export default function NGOHome() {
                                   <span className="truncate">{listing.partner.address?.city || 'Local Area'}</span>
                                 </div>
                               </div>
-  
+
                               <div className="space-y-3 border-t pt-4">
                                 <div className="flex items-center justify-between px-1">
                                   <label className="text-[10px] uppercase font-bold text-muted-foreground mr-1">
                                     Claim Amount
                                   </label>
                                   <div className="flex items-center gap-2">
-                                    <input 
-                                      type="number" 
-                                      min={1} 
+                                    <input
+                                      type="number"
+                                      min={1}
                                       max={listing.quantityAvailable || 999}
                                       value={claimQuantities[listing._id] || 1}
                                       onChange={(e) => setClaimQuantities({
@@ -641,9 +677,9 @@ export default function NGOHome() {
                                     </span>
                                   </div>
                                 </div>
-  
+
                                 <div className="flex gap-2">
-                                  <Button 
+                                  <Button
                                     className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-xl h-10 shadow-lg shadow-primary/10"
                                     onClick={() => openClaimModal(listing)}
                                   >
@@ -665,7 +701,6 @@ export default function NGOHome() {
               );
             })()
           ) : (
-            /* NEW: Claimed Items View */
             myClaims.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 bg-muted/20 border border-dashed border-border rounded-3xl text-center px-6">
                 <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
@@ -705,12 +740,12 @@ export default function NGOHome() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-2 text-right">
                         <Badge className={cn(
                           "text-[10px] uppercase font-bold",
-                          claim.status === 'claimed' ? "bg-orange-500/10 text-orange-600 border-orange-500/20" : 
-                          claim.status === 'picked_up' ? "bg-green-500/10 text-green-600 border-green-500/20" : 
+                          claim.status === 'claimed' ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                          claim.status === 'picked_up' ? "bg-green-500/10 text-green-600 border-green-500/20" :
                           "bg-blue-500/10 text-blue-600 border-blue-500/20"
                         )}>
                           {claim.status.replace('_', ' ')}
@@ -722,13 +757,13 @@ export default function NGOHome() {
 
                       {claim.status !== 'picked_up' && claim.status !== 'consumed' && (
                         <div className="ml-4 pl-4 border-l border-border/50">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="h-8 rounded-lg text-[10px] font-bold border-primary/30 text-primary hover:bg-primary/5"
                             onClick={() => handleUpdateClaimStatus(claim)}
                           >
-                            {claim.partnerType === 'restaurant' ? 'Mark Shared' : 'Mark Recieved'}
+                            {claim.partnerType === 'restaurant' ? 'Mark Shared' : 'Mark Received'}
                           </Button>
                         </div>
                       )}
@@ -740,7 +775,7 @@ export default function NGOHome() {
           )}
         </div>
 
-        {/* Sidebar elements */}
+        {/* Sidebar */}
         <div className="space-y-6">
           {/* Quick Insights */}
           <Card className="glass-card p-6 border-border/50">
@@ -765,7 +800,7 @@ export default function NGOHome() {
             </Button>
           </Card>
 
-          {/* Volunteer Status / Small Card */}
+          {/* Team Activity */}
           <Card className="glass-card p-6 bg-gradient-to-br from-indigo-600/10 to-transparent border-indigo-500/20">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-10 w-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
@@ -813,18 +848,18 @@ export default function NGOHome() {
                     {claimQuantities[selectedListing?._id || ''] || 1} {selectedListing?.unit || 'units'}
                   </span>
                 </div>
-                
+
                 <h4 className="text-sm font-bold mb-3">Fulfillment Selection</h4>
-                <RadioGroup 
-                  value={fulfillmentMethod} 
+                <RadioGroup
+                  value={fulfillmentMethod}
                   onValueChange={(v) => setFulfillmentMethod(v as any)}
                   className="grid gap-3"
                 >
-                  <label 
+                  <label
                     className={cn(
                       "flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      fulfillmentMethod === 'pickup' 
-                        ? "border-primary bg-primary/5 shadow-md" 
+                      fulfillmentMethod === 'pickup'
+                        ? "border-primary bg-primary/5 shadow-md"
                         : "border-border/50 bg-background hover:border-primary/20"
                     )}
                   >
@@ -844,11 +879,11 @@ export default function NGOHome() {
                     {fulfillmentMethod === 'pickup' && <CheckCircle2 className="h-5 w-5 text-primary" />}
                   </label>
 
-                  <label 
+                  <label
                     className={cn(
                       "flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      fulfillmentMethod === 'delivery' 
-                        ? "border-primary bg-primary/5 shadow-md" 
+                      fulfillmentMethod === 'delivery'
+                        ? "border-primary bg-primary/5 shadow-md"
                         : "border-border/50 bg-background hover:border-primary/20"
                     )}
                   >
@@ -881,15 +916,15 @@ export default function NGOHome() {
             </div>
 
             <DialogFooter className="mt-8 flex flex-row gap-3">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1 rounded-xl font-bold h-12"
                 onClick={() => setIsClaimModalOpen(false)}
                 disabled={isClaiming}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold h-12 shadow-lg shadow-primary/20"
                 onClick={handleClaim}
                 disabled={isClaiming}

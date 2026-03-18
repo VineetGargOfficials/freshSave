@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -51,160 +52,108 @@ interface ClaimRecord {
   quantity: number;
   unit: string;
   status: string;
-  fulfillmentMethod?: 'pickup' | 'delivery';
+  fulfillmentMethod?: "pickup" | "delivery";
   claimedAt: string;
 }
 
-const donationHistory = [
-  {
-    id: 1,
-    food: "Dal Makhani with Rice",
-    quantity: "30 portions",
-    ngo: "Hope Foundation",
-    ngoImage: "🏠",
-    date: "2025-01-15",
-    time: "7:30 PM",
-    status: "completed",
-    category: "Cooked Food",
-    weight: "15 kg",
-    pickupDuration: "25 mins",
-  },
-  {
-    id: 2,
-    food: "Fresh Bread Loaves",
-    quantity: "40 pieces",
-    ngo: "Community Kitchen",
-    ngoImage: "🍳",
-    date: "2025-01-15",
-    time: "2:00 PM",
-    status: "completed",
-    category: "Bakery",
-    weight: "8 kg",
-    pickupDuration: "15 mins",
-  },
-  {
-    id: 3,
-    food: "Vegetable Biryani",
-    quantity: "50 portions",
-    ngo: "Care Center",
-    ngoImage: "💚",
-    date: "2025-01-14",
-    time: "8:00 PM",
-    status: "completed",
-    category: "Cooked Food",
-    weight: "25 kg",
-    pickupDuration: "30 mins",
-  },
-  {
-    id: 4,
-    food: "Mixed Fruit Salad",
-    quantity: "10 kg",
-    ngo: "Children's Home",
-    ngoImage: "👶",
-    date: "2025-01-14",
-    time: "4:30 PM",
-    status: "completed",
-    category: "Fruits",
-    weight: "10 kg",
-    pickupDuration: "20 mins",
-  },
-  {
-    id: 5,
-    food: "Paneer Curry & Roti",
-    quantity: "25 portions",
-    ngo: "Helping Hands",
-    ngoImage: "🤝",
-    date: "2025-01-13",
-    time: "9:00 PM",
-    status: "completed",
-    category: "Cooked Food",
-    weight: "12 kg",
-    pickupDuration: "35 mins",
-  },
-  {
-    id: 6,
-    food: "Assorted Pastries",
-    quantity: "24 pieces",
-    ngo: "Hope Foundation",
-    ngoImage: "🏠",
-    date: "2025-01-13",
-    time: "6:00 PM",
-    status: "expired",
-    category: "Bakery",
-    weight: "5 kg",
-    pickupDuration: "-",
-  },
-  {
-    id: 7,
-    food: "Curd Rice",
-    quantity: "35 portions",
-    ngo: "Community Kitchen",
-    ngoImage: "🍳",
-    date: "2025-01-12",
-    time: "1:00 PM",
-    status: "completed",
-    category: "Cooked Food",
-    weight: "18 kg",
-    pickupDuration: "22 mins",
-  },
-  {
-    id: 8,
-    food: "Fresh Vegetables",
-    quantity: "20 kg",
-    ngo: "Care Center",
-    ngoImage: "💚",
-    date: "2025-01-12",
-    time: "11:00 AM",
-    status: "completed",
-    category: "Raw Vegetables",
-    weight: "20 kg",
-    pickupDuration: "40 mins",
-  },
-  {
-    id: 9,
-    food: "Idli & Sambar",
-    quantity: "60 portions",
-    ngo: "Shelter Home",
-    ngoImage: "🏘️",
-    date: "2025-01-11",
-    time: "8:30 AM",
-    status: "completed",
-    category: "Cooked Food",
-    weight: "20 kg",
-    pickupDuration: "18 mins",
-  },
-  {
-    id: 10,
-    food: "Sandwich Platter",
-    quantity: "30 pieces",
-    ngo: "Children's Home",
-    ngoImage: "👶",
-    date: "2025-01-10",
-    time: "3:00 PM",
-    status: "completed",
-    category: "Bakery",
-    weight: "6 kg",
-    pickupDuration: "28 mins",
-  },
+// ── Synced from ListFood.tsx ──────────────────────────────────────────────────
+const FOOD_CATEGORIES = [
+  { id: "Appetizers", label: "Appetizers", icon: "🥗" },
+  { id: "Main Course", label: "Main Course", icon: "🍛" },
+  { id: "Desserts", label: "Desserts", icon: "🍰" },
+  { id: "Beverages", label: "Beverages", icon: "🥤" },
+  { id: "Snacks", label: "Snacks", icon: "🍿" },
+  { id: "Salads", label: "Salads", icon: "🥬" },
+  { id: "Soups", label: "Soups", icon: "🍲" },
+  { id: "Breakfast", label: "Breakfast", icon: "🍳" },
+  { id: "Sides", label: "Sides", icon: "🍞" },
+  { id: "Other", label: "Other", icon: "📦" },
 ];
 
-const monthlyStats = [
-  { month: "Jan", donations: 24, meals: 892 },
-  { month: "Dec", donations: 18, meals: 654 },
-  { month: "Nov", donations: 21, meals: 780 },
-  { month: "Oct", donations: 15, meals: 520 },
-];
-
+const ALL_CATEGORY_FILTER = "All Categories";
+const categoryFilters = [ALL_CATEGORY_FILTER, ...FOOD_CATEGORIES.map((c) => c.id)];
 const filterOptions = ["All", "Completed", "Pending", "Expired"];
-const categoryFilters = ["All Categories", "Cooked Food", "Bakery", "Fruits", "Raw Vegetables", "Dairy"];
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function buildMonthlyStats(claims: ClaimRecord[]) {
+  const now = new Date();
+  // Build last 4 calendar months including current
+  const months: { month: string; year: number; monthIdx: number }[] = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ month: MONTH_LABELS[d.getMonth()], year: d.getFullYear(), monthIdx: d.getMonth() });
+  }
+
+  return months.map(({ month, year, monthIdx }) => {
+    const monthClaims = claims.filter((c) => {
+      const d = new Date(c.claimedAt);
+      return d.getFullYear() === year && d.getMonth() === monthIdx;
+    });
+    const donations = monthClaims.length;
+    const meals = monthClaims.reduce((acc, c) => acc + (c.quantity || 0), 0);
+    return { month, donations, meals };
+  });
+}
+
+function exportToExcel(claims: ClaimRecord[]) {
+  const rows = claims.map((c) => ({
+    "Food Item": c.listing?.name || "Unknown",
+    Category: c.listing?.category || "Other",
+    Quantity: c.quantity,
+    Unit: c.unit || c.listing?.unit || "",
+    "NGO Name": c.ngo.organizationName || c.ngo.name || "",
+    "NGO Phone": c.ngo.phoneNumber || "",
+    "NGO Email": c.ngo.email || "",
+    "Fulfillment Method": c.fulfillmentMethod || "",
+    Status: c.status,
+    "Claimed Date": new Date(c.claimedAt).toLocaleDateString(),
+    "Claimed Time": new Date(c.claimedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  // Column widths
+  ws["!cols"] = [
+    { wch: 28 }, // Food Item
+    { wch: 16 }, // Category
+    { wch: 10 }, // Quantity
+    { wch: 10 }, // Unit
+    { wch: 26 }, // NGO Name
+    { wch: 16 }, // NGO Phone
+    { wch: 26 }, // NGO Email
+    { wch: 18 }, // Fulfillment
+    { wch: 14 }, // Status
+    { wch: 14 }, // Date
+    { wch: 12 }, // Time
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Donation History");
+
+  // Summary sheet
+  const monthly = buildMonthlyStats(claims);
+  const summaryRows = monthly.map((m) => ({
+    Month: m.month,
+    "Total Donations": m.donations,
+    "Total Meals / Units": m.meals,
+  }));
+  const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+  ws2["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws2, "Monthly Summary");
+
+  XLSX.writeFile(wb, `Donation_History_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function DonationHistory() {
   const { token } = useAuth();
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORY_FILTER);
 
   const fetchClaims = async () => {
     setLoading(true);
@@ -228,11 +177,10 @@ export default function DonationHistory() {
   }, []);
 
   const filteredClaims = claims.filter((claim) => {
-    const matchesSearch = 
+    const matchesSearch =
       (claim.listing?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (claim.ngo.organizationName || claim.ngo.name || "").toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Map frontend filter options to backend statuses
+
     let matchesStatus = statusFilter === "All";
     if (statusFilter === "Completed") {
       matchesStatus = ["completed", "distributed", "picked_up"].includes(claim.status);
@@ -242,16 +190,22 @@ export default function DonationHistory() {
       matchesStatus = claim.status === "cancelled" || claim.status === "expired";
     }
 
-    const matchesCategory = categoryFilter === "All Categories" || (claim.listing?.category || "Other") === categoryFilter;
+    const matchesCategory =
+      categoryFilter === ALL_CATEGORY_FILTER ||
+      (claim.listing?.category || "Other") === categoryFilter;
+
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
   const stats = {
     totalDonations: claims.length,
     mealsServed: claims.reduce((acc, c) => acc + (c.quantity || 0), 0),
-    ngosHelped: new Set(claims.map(c => c.ngo._id || c.ngo.name)).size,
+    ngosHelped: new Set(claims.map((c) => c.ngo._id || c.ngo.name)).size,
     foodSaved: `${claims.reduce((acc, c) => acc + (c.quantity || 0), 0)} Units`,
   };
+
+  // Dynamic monthly stats
+  const monthlyStats = buildMonthlyStats(claims);
 
   const topNGOs = Object.values(
     claims.reduce((acc, c) => {
@@ -263,7 +217,9 @@ export default function DonationHistory() {
       acc[id].meals += c.quantity;
       return acc;
     }, {} as Record<string, any>)
-  ).sort((a, b) => b.donations - a.donations).slice(0, 4);
+  )
+    .sort((a, b) => b.donations - a.donations)
+    .slice(0, 4);
 
   return (
     <div className="space-y-6">
@@ -278,14 +234,16 @@ export default function DonationHistory() {
             <History className="h-8 w-8 text-orange-500" />
             Donation History
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Track all your past donations and impact
-          </p>
+          <p className="text-muted-foreground mt-1">Track all your past donations and impact</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            onClick={() => exportToExcel(claims)}
+            disabled={claims.length === 0}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </motion.div>
@@ -348,7 +306,9 @@ export default function DonationHistory() {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             {filterOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>
+                {option}
+              </option>
             ))}
           </select>
           <select
@@ -357,13 +317,17 @@ export default function DonationHistory() {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             {categoryFilters.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>
+                {option === ALL_CATEGORY_FILTER
+                  ? ALL_CATEGORY_FILTER
+                  : `${FOOD_CATEGORIES.find((c) => c.id === option)?.icon ?? ""} ${option}`}
+              </option>
             ))}
           </select>
         </div>
       </motion.div>
 
-      {/* Monthly Overview */}
+      {/* Monthly Overview — dynamic */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -374,22 +338,35 @@ export default function DonationHistory() {
             <TrendingUp className="h-5 w-5 text-green-500" />
             Monthly Overview
           </h3>
-          <div className="grid grid-cols-4 gap-3">
-            {monthlyStats.map((stat, index) => (
-              <div
-                key={stat.month}
-                className={`p-3 rounded-lg text-center ${
-                  index === 0 ? "bg-orange-500/10 border border-orange-500/30" : "bg-muted/30"
-                }`}
-              >
-                <p className="text-sm font-medium text-foreground">{stat.month}</p>
-                <p className={`text-lg font-bold ${index === 0 ? "text-orange-500" : "text-foreground"}`}>
-                  {stat.donations}
-                </p>
-                <p className="text-xs text-muted-foreground">{stat.meals} meals</p>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading…
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {monthlyStats.map((stat, index) => (
+                <div
+                  key={stat.month}
+                  className={`p-3 rounded-lg text-center ${
+                    index === monthlyStats.length - 1
+                      ? "bg-orange-500/10 border border-orange-500/30"
+                      : "bg-muted/30"
+                  }`}
+                >
+                  <p className="text-sm font-medium text-foreground">{stat.month}</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      index === monthlyStats.length - 1 ? "text-orange-500" : "text-foreground"
+                    }`}
+                  >
+                    {stat.donations}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{stat.meals} units</p>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </motion.div>
 
@@ -403,18 +380,16 @@ export default function DonationHistory() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <Calendar className="h-5 w-5 text-orange-500" />
-              All Claims & Donations
+              All Claims &amp; Donations
             </h2>
-            <Badge variant="outline">
-              {filteredClaims.length} records
-            </Badge>
+            <Badge variant="outline">{filteredClaims.length} records</Badge>
           </div>
 
           {loading ? (
-             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-               <Loader2 className="h-10 w-10 animate-spin mb-4" />
-               <p>Fetching your donation history...</p>
-             </div>
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <Loader2 className="h-10 w-10 animate-spin mb-4" />
+              <p>Fetching your donation history...</p>
+            </div>
           ) : filteredClaims.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border text-center">
               <Package className="h-12 w-12 opacity-20 mb-3" />
@@ -423,70 +398,91 @@ export default function DonationHistory() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredClaims.map((claim, index) => (
-                <motion.div
-                  key={claim._id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + index * 0.03 }}
-                  className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center text-2xl shrink-0">
-                    🏢
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-foreground">{claim.listing?.name || "Unknown Item"}</p>
-                      <Badge variant="outline" className="text-xs hidden sm:inline-flex capitalize">
-                        {claim.listing?.status || claim.status}
-                      </Badge>
+              {filteredClaims.map((claim, index) => {
+                const categoryMeta = FOOD_CATEGORIES.find(
+                  (c) => c.id === (claim.listing?.category || "Other")
+                );
+                return (
+                  <motion.div
+                    key={claim._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.03 }}
+                    className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center text-2xl shrink-0">
+                      {categoryMeta?.icon ?? "🏢"}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        {claim.quantity} {claim.unit || claim.listing?.unit}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {claim.ngo.organizationName || claim.ngo.name}
-                      </span>
-                      {claim.ngo.phoneNumber && (
-                        <span className="flex items-center gap-1 text-[11px]">
-                          📱 {claim.ngo.phoneNumber}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                    {claim.fulfillmentMethod && (
-                      <Badge 
-                        variant="secondary" 
-                        className={cn(
-                          "text-[10px] uppercase font-bold border-none",
-                          claim.fulfillmentMethod === 'pickup' ? "bg-blue-500/10 text-blue-600" : "bg-purple-500/10 text-purple-600"
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-foreground">
+                          {claim.listing?.name || "Unknown Item"}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="text-xs hidden sm:inline-flex capitalize"
+                        >
+                          {claim.listing?.status || claim.status}
+                        </Badge>
+                        {claim.listing?.category && (
+                          <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                            {categoryMeta?.icon} {claim.listing.category}
+                          </Badge>
                         )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Package className="h-3 w-3" />
+                          {claim.quantity} {claim.unit || claim.listing?.unit}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {claim.ngo.organizationName || claim.ngo.name}
+                        </span>
+                        {claim.ngo.phoneNumber && (
+                          <span className="flex items-center gap-1 text-[11px]">
+                            📱 {claim.ngo.phoneNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                      {claim.fulfillmentMethod && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] uppercase font-bold border-none",
+                            claim.fulfillmentMethod === "pickup"
+                              ? "bg-blue-500/10 text-blue-600"
+                              : "bg-purple-500/10 text-purple-600"
+                          )}
+                        >
+                          {claim.fulfillmentMethod === "pickup" ? "🏃 Pickup" : "🚚 Delivery"}
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={
+                          claim.status === "completed" || claim.status === "distributed"
+                            ? "text-green-600 border-green-500/30 bg-green-500/10"
+                            : claim.status === "claimed"
+                            ? "text-yellow-600 border-yellow-500/30 bg-yellow-500/10"
+                            : "text-red-600 border-red-500/30 bg-red-500/10"
+                        }
                       >
-                        {claim.fulfillmentMethod === 'pickup' ? '🏃 Pickup' : '🚚 Delivery'}
+                        {claim.status.charAt(0).toUpperCase() + claim.status.slice(1)}
                       </Badge>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={
-                        claim.status === "completed" || claim.status === "distributed"
-                          ? "text-green-600 border-green-500/30 bg-green-500/10"
-                          : claim.status === "claimed"
-                          ? "text-yellow-600 border-yellow-500/30 bg-yellow-500/10"
-                          : "text-red-600 border-red-500/30 bg-red-500/10"
-                      }
-                    >
-                      {claim.status.charAt(0).toUpperCase() + claim.status.slice(1)}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(claim.claimedAt).toLocaleDateString()} • {new Date(claim.claimedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(claim.claimedAt).toLocaleDateString()} •{" "}
+                        {new Date(claim.claimedAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
 
