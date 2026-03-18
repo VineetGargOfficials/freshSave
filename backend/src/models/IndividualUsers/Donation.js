@@ -20,6 +20,14 @@ const donationSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please specify quantity']
   },
+  quantityAvailable: {
+    type: Number,
+    min: [0, 'Quantity cannot be negative']
+  },
+  unit: {
+    type: String,
+    default: 'portions'
+  },
   foodType: {
     type: String,
     enum: ['cooked', 'packaged', 'fresh', 'mixed'],
@@ -57,6 +65,11 @@ const donationSchema = new mongoose.Schema({
     ref: 'User'
   },
   claimedAt: Date,
+  fulfillmentMethod: {
+    type: String,
+    enum: ['pickup', 'delivery'],
+    default: 'pickup'
+  },
   pickupTime: Date,
   specialInstructions: {
     type: String,

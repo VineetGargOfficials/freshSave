@@ -1,4 +1,6 @@
 const Donation = require('../models/IndividualUsers/Donation');
+const FoodItem = require('../models/IndividualUsers/FoodItem');
+const Claim = require('../models/Claim');
 
 // @desc    Get all donations
 // @route   GET /api/donations
@@ -14,10 +16,19 @@ exports.getDonations = async (req, res) => {
       .populate('donor', 'name organizationName')
       .sort({ createdAt: -1 });
     
+    // Ensure all listings have a quantityAvailable field for frontend compatibility
+    const processedDonations = donations.map(d => {
+      const donationObj = d.toObject();
+      if (donationObj.quantityAvailable === undefined) {
+        donationObj.quantityAvailable = donationObj.servings || 1;
+      }
+      return donationObj;
+    });
+    
     res.status(200).json({
       success: true,
-      count: donations.length,
-      data: donations
+      count: processedDonations.length,
+      data: processedDonations
     });
 
   } catch (error) {
@@ -65,6 +76,14 @@ exports.getDonation = async (req, res) => {
 exports.createDonation = async (req, res) => {
   try {
     req.body.donor = req.user.id;
+    
+    // Auto-populate quantityAvailable from servings if provided and not explicitly set
+    if (req.body.servings && req.body.quantityAvailable === undefined) {
+      req.body.quantityAvailable = req.body.servings;
+    } else if (req.body.quantityAvailable === undefined) {
+      // Default to 1 if no quantity info is provided
+      req.body.quantityAvailable = 1;
+    }
     
     const donation = await Donation.create(req.body);
     
@@ -128,7 +147,7 @@ exports.updateDonation = async (req, res) => {
 // @access  Private
 exports.claimDonation = async (req, res) => {
   try {
-    const donation = await Donation.findById(req.params.id);
+    const donation = await Donation.findById(req.params.id).populate('donor', 'name organizationName');
     
     if (!donation) {
       return res.status(404).json({
@@ -143,15 +162,69 @@ exports.claimDonation = async (req, res) => {
         message: 'Donation is not available'
       });
     }
+
+    const { quantity: claimQuantity, fulfillmentMethod = 'pickup' } = req.body;
+    const claimQtyNum = parseInt(claimQuantity) || 1;
+
+    // Check if enough quantity is available (if using numeric tracking)
+    if (donation.quantityAvailable !== undefined && donation.quantityAvailable < claimQtyNum) {
+      return res.status(400).json({
+        success: false,
+        message: `Only ${donation.quantityAvailable} ${donation.unit || 'portions'} available.`
+      });
+    }
     
-    donation.status = 'claimed';
-    donation.claimedBy = req.user.id;
-    donation.claimedAt = Date.now();
+    // Create a FoodItem for the NGO
+    const foodItem = await FoodItem.create({
+      user: req.user.id,
+      name: donation.foodDescription.split('\n')[0].substring(0, 50),
+      quantity: claimQuantity || donation.quantity,
+      category: 'Other',
+      expiryDate: donation.availableUntil,
+      storageLocation: 'fridge',
+      notes: `Claimed (${fulfillmentMethod}) from ${donation.donor?.organizationName || donation.donor?.name || 'Individual'}: ${donation.foodDescription.substring(0, 100)}`,
+      addedVia: 'manual'
+    });
+
+    // Save choice on donation
+    donation.fulfillmentMethod = fulfillmentMethod;
+
+    // Update donation quantity
+    if (donation.quantityAvailable !== undefined) {
+      donation.quantityAvailable -= claimQtyNum;
+      
+      if (donation.quantityAvailable <= 0) {
+        donation.status = 'claimed';
+        donation.claimedBy = req.user.id;
+        donation.claimedAt = Date.now();
+      }
+    } else {
+      // Fallback for older donations without numeric quantityAvailable
+      donation.status = 'claimed';
+      donation.claimedBy = req.user.id;
+      donation.claimedAt = Date.now();
+    }
+    
     await donation.save();
+
+    // Create a Claim record for the donor to see (consistent with restaurants)
+    await Claim.create({
+      listing: donation._id,
+      listingModel: 'Donation',
+      ngo: req.user.id,
+      quantity: claimQtyNum,
+      unit: donation.unit || 'portions',
+      status: 'claimed',
+      fulfillmentMethod,
+      notes: `NGO choice: ${fulfillmentMethod}`
+    });
     
     res.status(200).json({
       success: true,
-      data: donation,
+      data: {
+        donation,
+        foodItem
+      },
       message: 'Donation claimed successfully'
     });
 

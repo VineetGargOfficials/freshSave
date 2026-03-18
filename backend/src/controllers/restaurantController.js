@@ -1,6 +1,7 @@
 const RestaurantFoodListing = require('../models/Restaurants/RestaurantFoodListing');
 const FoodItem = require('../models/IndividualUsers/FoodItem');
 const User = require('../models/User');
+const Claim = require('../models/Claim');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC / USER-FACING
@@ -255,6 +256,8 @@ exports.getConnectedListings = async (req, res) => {
       name: l.name,
       description: l.description,
       quantity: `${l.quantityAvailable} ${l.unit}`,
+      quantityAvailable: l.quantityAvailable,
+      unit: l.unit,
       expiryDate: l.expiryDate,
       partner: l.restaurant,
       partnerType: 'restaurant',
@@ -267,6 +270,8 @@ exports.getConnectedListings = async (req, res) => {
       name: d.foodDescription.split('\n')[0].substring(0, 50), // Use first line of description as name
       description: d.foodDescription,
       quantity: d.quantity,
+      quantityAvailable: d.quantityAvailable || d.servings || 1,
+      unit: d.unit || 'portions',
       expiryDate: d.availableUntil,
       partner: d.donor,
       partnerType: 'individual',
@@ -299,7 +304,7 @@ exports.getConnectedListings = async (req, res) => {
  */
 exports.addListingToFridge = async (req, res) => {
   try {
-    const listing = await RestaurantFoodListing.findById(req.params.id);
+    const listing = await RestaurantFoodListing.findById(req.params.id).populate('restaurant', 'name organizationName');
 
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
@@ -309,7 +314,7 @@ exports.addListingToFridge = async (req, res) => {
     }
 
     // Create a FoodItem in the user's fridge from the listing details
-    const { quantity, storageLocation = 'fridge', notes } = req.body;
+    const { quantity, storageLocation = 'fridge', notes, fulfillmentMethod = 'pickup', deliveryAddress } = req.body;
 
     // Default expiry: listing's expiry date or 3 days from now
     const expiryDate = listing.expiryDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
@@ -328,35 +333,75 @@ exports.addListingToFridge = async (req, res) => {
       'Other': 'Other'
     };
 
+    const partnerName = listing.restaurant?.organizationName || listing.restaurant?.name || 'Restaurant';
+
+    // Parse numeric quantity if claiming partially
+    const claimQtyNum = parseInt(quantity) || 1;
+    
+    // Check if requested quantity is available
+    if (listing.quantityAvailable < claimQtyNum) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Only ${listing.quantityAvailable} ${listing.unit} available for this item.` 
+      });
+    }
+
     const foodItem = await FoodItem.create({
       user: req.user.id,
       name: listing.name,
-      quantity: quantity || `${listing.quantityAvailable} ${listing.unit}`,
+      quantity: quantity || `${claimQtyNum} ${listing.unit}`,
       category: categoryMap[listing.category] || 'Other',
       expiryDate,
       storageLocation,
-      notes: notes || `Added from ${listing.name} restaurant listing`,
+      notes: notes || `Added from ${partnerName} restaurant listing: ${listing.name}`,
       addedVia: 'manual',
       nutritionInfo: listing.nutritionInfo || {}
     });
 
-    // Track reservation count
-    listing.totalReservations += 1;
-    // Optionally decrement quantity
-    if (listing.quantityAvailable > 0) {
-      listing.quantityAvailable -= 1;
+    // Create a Claim record for the restaurant to see (for NGOs)
+    if (req.user.role === 'ngo') {
+      await Claim.create({
+        listing: listing._id,
+        listingModel: 'RestaurantFoodListing',
+        ngo: req.user.id,
+        quantity: claimQtyNum,
+        unit: listing.unit,
+        status: 'claimed',
+        fulfillmentMethod,
+        notes: notes || `Fulfillment: ${fulfillmentMethod}${deliveryAddress ? ` to ${deliveryAddress}` : ''}`
+      });
     }
+
+
+    
+    // For NGOs, handle partial or full claim
+    if (req.user.role === 'ngo') {
+      listing.quantityAvailable -= claimQtyNum;
+      if (listing.quantityAvailable <= 0) {
+        listing.isAvailable = false;
+        listing.status = 'sold_out';
+      }
+    } else if (listing.quantityAvailable > 0) {
+      // Regular users take just one portion/unit
+      listing.quantityAvailable -= 1;
+      if (listing.quantityAvailable <= 0) {
+        listing.isAvailable = false;
+        listing.status = 'sold_out';
+      }
+    }
+    
     await listing.save();
 
     res.status(201).json({
       success: true,
-      message: `"${listing.name}" has been added to your fridge!`,
+      message: `"${listing.name}" has been added to your collection!`,
       data: {
         foodItem,
         listing: {
           id: listing._id,
           name: listing.name,
-          remainingQuantity: listing.quantityAvailable
+          remainingQuantity: listing.quantityAvailable,
+          unit: listing.unit
         }
       }
     });
@@ -529,3 +574,41 @@ exports.getMyStats = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Failed to get stats' });
   }
 };
+
+/**
+ * @desc    Get all claims on this restaurant's listings
+ * @route   GET /api/restaurants/my/claims
+ * @access  Private (restaurant role)
+ */
+exports.getRestaurantClaims = async (req, res) => {
+  try {
+    const { listingId } = req.query;
+    
+    // Find all listings belonging to this restaurant
+    const myListingIds = await RestaurantFoodListing.find({ restaurant: req.user.id }).distinct('_id');
+    
+    let filter = { 
+      listing: { $in: myListingIds },
+      listingModel: 'RestaurantFoodListing'
+    };
+    
+    if (listingId) {
+      filter.listing = listingId;
+    }
+
+    const claims = await Claim.find(filter)
+      .populate('ngo', 'name organizationName phoneNumber email profileImage')
+      .populate('listing', 'name quantityAvailable unit status')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: claims.length,
+      data: claims
+    });
+  } catch (error) {
+    console.error('Get restaurant claims error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch claims' });
+  }
+};
+
