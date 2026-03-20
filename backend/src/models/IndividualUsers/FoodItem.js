@@ -1,5 +1,23 @@
 const mongoose = require('mongoose');
 
+const calculateStatusFromExpiry = (expiryDate) => {
+  const now = new Date();
+  const expiry = new Date(expiryDate);
+  const diffTime = expiry - now;
+  const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (days < 0) {
+    return 'expired';
+  }
+  if (days === 0) {
+    return 'urgent';
+  }
+  if (days <= 3) {
+    return 'warning';
+  }
+  return 'fresh';
+};
+
 const foodItemSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -55,8 +73,38 @@ const foodItemSchema = new mongoose.Schema({
   },
   addedVia: {
     type: String,
-    enum: ['manual', 'voice', 'ocr', 'camera'],
+    enum: ['manual', 'voice', 'ocr', 'camera', 'fridge_scan'],
     default: 'manual'
+  },
+  confidenceScore: {
+    type: Number,
+    min: 0,
+    max: 1
+  },
+  expirySource: {
+    type: String,
+    enum: ['manual', 'ocr_detected', 'ai_predicted', 'user_input'],
+    default: 'manual'
+  },
+  scanSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ScanHistory'
+  },
+  rawScanText: {
+    type: String
+  },
+  scanMetadata: {
+    imageName: String,
+    detectionProvider: String,
+    detectedAt: Date
+  },
+  alertSent: {
+    type: Boolean,
+    default: false
+  },
+  alertDaysBefore: {
+    type: Number,
+    default: 3
   },
   consumed: {
     type: Boolean,
@@ -82,27 +130,20 @@ foodItemSchema.virtual('daysUntilExpiry').get(function() {
 
 // Method to update status based on expiry
 foodItemSchema.methods.updateStatus = function() {
-  const now = new Date();
-  const expiry = new Date(this.expiryDate);
-  const diffTime = expiry - now;
-  const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (days < 0) {
-    this.status = 'expired';
-  } else if (days === 0) {
-    this.status = 'urgent';
-  } else if (days <= 3) {
-    this.status = 'warning';
-  } else {
-    this.status = 'fresh';
-  }
+  this.status = calculateStatusFromExpiry(this.expiryDate);
   return this.status;
 };
+
+foodItemSchema.statics.calculateStatusFromExpiry = calculateStatusFromExpiry;
 
 // Pre-save middleware - MONGOOSE 8.x COMPATIBLE (NO next() callback)
 foodItemSchema.pre('save', function() {
   if (this.isModified('expiryDate') || this.isNew) {
     this.updateStatus();
+  }
+
+  if (this.isModified('expiryDate') || this.isModified('consumed') || this.isNew) {
+    this.alertSent = false;
   }
 });
 

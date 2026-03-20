@@ -1,10 +1,16 @@
 export interface FoodItem {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   quantity: string;
   category: string;
   expiryDate: string;
   addedAt: string;
+  status?: string;
+  addedVia?: string;
+  confidenceScore?: number;
+  expirySource?: string;
+  notes?: string;
 }
 
 export interface DonationItem {
