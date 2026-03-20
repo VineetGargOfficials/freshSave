@@ -117,3 +117,20 @@ exports.processFoodImage = async (imageBuffer) => {
     };
   }
 };
+
+exports.extractExpiryCandidates = (text = '') => {
+  const patterns = [
+    /\b\d{4}[\/-]\d{2}[\/-]\d{2}\b/g,
+    /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g,
+    /\b\d{1,2}[\/-]\d{4}\b/g,
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{2,4}\b/gi
+  ];
+
+  const values = new Set();
+  for (const pattern of patterns) {
+    const matches = text.match(pattern) || [];
+    matches.forEach((match) => values.add(match.trim()));
+  }
+
+  return Array.from(values);
+};

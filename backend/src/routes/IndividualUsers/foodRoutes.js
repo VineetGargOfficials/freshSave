@@ -7,9 +7,12 @@ const {
   deleteFoodItem,
   getExpiringItems,
   consumeFood,
-  getStats
+  getStats,
+  scanFridgeItems,
+  getScanHistory
 } = require('../../controllers/foodController');
 const { protect } = require('../../middleware/auth');
+const upload = require('../../middleware/upload');
 
 const router = express.Router();
 
@@ -20,6 +23,8 @@ router.route('/')
   .post(addFoodItem);
 
 router.get('/stats', getStats);
+router.get('/scan-history', getScanHistory);
+router.post('/scan', upload.single('image'), scanFridgeItems);
 router.get('/expiring/:days', getExpiringItems);
 
 router.route('/:id')

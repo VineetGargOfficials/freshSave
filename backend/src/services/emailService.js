@@ -216,6 +216,53 @@ exports.sendWelcomeEmail = async (email, name, role) => {
   }
 };
 
+exports.sendExpiryNotification = async (email, items = []) => {
+  try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      return { success: false, message: 'Email service not configured' };
+    }
+
+    if (!items.length) {
+      return { success: true, skipped: true };
+    }
+
+    const transporter = createTransporter();
+    const rows = items.map((item) => `
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #eee;">${item.name}</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #eee;">${item.daysUntilExpiry} day(s)</td>
+      </tr>
+    `).join('');
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: email,
+      subject: 'FreshSave expiry reminder',
+      html: `
+        <div style="max-width: 640px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <h2 style="color: #1f2937;">Items expiring soon</h2>
+          <p style="color: #4b5563;">These items in your inventory are getting close to expiry.</p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+            <thead>
+              <tr>
+                <th style="text-align: left; padding: 10px 12px; background: #f3f4f6;">Item</th>
+                <th style="text-align: left; padding: 10px 12px; background: #f3f4f6;">Time left</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Expiry email failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Test email configuration
 exports.testEmailConfig = async () => {
   try {
