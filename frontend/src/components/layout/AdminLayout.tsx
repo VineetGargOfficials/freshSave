@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { ShieldCheck, Bell, LogOut, ChevronDown, User, Truck } from "lucide-react";
+import { ShieldCheck, Bell, LogOut, ChevronDown, User, Truck, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
   { path: "/admin", label: "Admin Panel", icon: ShieldCheck },
   { path: "/admin/delivery-partnerships", label: "Delivery", icon: Truck },
+  { path: "/admin/restaurant-reviews", label: "Reviews", icon: Star },
 ];
 
 export default function AdminLayout() {
@@ -75,6 +76,10 @@ export default function AdminLayout() {
                 <DropdownMenuItem onClick={() => navigate("/admin/delivery-partnerships")}>
                   <Truck className="h-4 w-4 mr-2" />
                   Delivery Partnerships
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/admin/restaurant-reviews")}>
+                  <Star className="h-4 w-4 mr-2" />
+                  Restaurant Reviews
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-500">

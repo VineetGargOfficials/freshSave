@@ -25,6 +25,7 @@ import OffersDiscounts from "@/pages/user/OffersDiscounts";
 import UserProfile from "@/pages/user/UserProfile";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminDeliveryPartnerships from "@/pages/admin/AdminDeliveryPartnerships";
+import AdminRestaurantReviews from "@/pages/admin/AdminRestaurantReviews";
 
 // NGO pages
 import NGODashboard from "@/pages/ngo/NGODashboard";
@@ -310,6 +311,7 @@ function AppRoutes() {
       <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="delivery-partnerships" element={<AdminDeliveryPartnerships />} />
+        <Route path="restaurant-reviews" element={<AdminRestaurantReviews />} />
       </Route>
 
       {/* ==================== CATCH ALL ==================== */}

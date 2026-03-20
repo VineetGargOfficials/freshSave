@@ -12,6 +12,8 @@ import {
   Save,
   Settings,
   Shield,
+  Star,
+  Store,
   User,
   X,
 } from "lucide-react";
@@ -25,12 +27,32 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import RoleBadges from "@/components/common/RoleBadges";
 import { toast } from "sonner";
+import axios from "axios";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+interface SubmittedReview {
+  _id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  restaurant?: {
+    name?: string;
+    organizationName?: string;
+    address?: {
+      city?: string;
+      state?: string;
+    };
+  };
+}
 
 export default function UserProfile() {
   const navigate = useNavigate();
   const { user, updateProfile, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [submittedReviews, setSubmittedReviews] = useState<SubmittedReview[]>([]);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -46,7 +68,25 @@ export default function UserProfile() {
 
   useEffect(() => {
     refreshUser();
+    fetchSubmittedReviews();
   }, []);
+
+  const fetchSubmittedReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      const token = sessionStorage.getItem("freshsave_session_token");
+      const response = await axios.get(`${API_URL}/restaurants/my/reviews`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (response.data?.success) {
+        setSubmittedReviews(response.data.data || []);
+      }
+    } catch {
+      setSubmittedReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -111,8 +151,8 @@ export default function UserProfile() {
       await refreshUser();
       toast.success("Profile updated successfully!");
       setIsEditing(false);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update profile");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -256,6 +296,73 @@ export default function UserProfile() {
       </motion.div>
 
       <RoleBadges />
+
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+        <Card className="glass-card p-6 border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-background">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Star className="h-5 w-5 text-amber-500" />
+                My Restaurant Reviews
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Track the ratings and feedback you have submitted for restaurants.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit">
+              {submittedReviews.length} review{submittedReviews.length !== 1 ? "s" : ""}
+            </Badge>
+          </div>
+
+          {reviewsLoading ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading your reviews...
+            </div>
+          ) : submittedReviews.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+              <Store className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="font-medium text-foreground">No restaurant reviews submitted yet</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Rate restaurants from the Offers & Discounts section to see them here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {submittedReviews.map((review) => {
+                const restaurantName = review.restaurant?.organizationName || review.restaurant?.name || "Restaurant";
+                const location = [review.restaurant?.address?.city, review.restaurant?.address?.state].filter(Boolean).join(", ");
+
+                return (
+                  <div key={review._id} className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-foreground flex items-center gap-2">
+                          <Store className="h-4 w-4 text-primary" />
+                          {restaurantName}
+                        </p>
+                        {location && <p className="text-xs text-muted-foreground mt-1">{location}</p>}
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {review.comment?.trim() || "No written feedback shared."}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">
+                          <Star className="h-3 w-3 mr-1 fill-amber-400 text-amber-400" />
+                          {review.rating}/5
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {new Date(review.createdAt).toLocaleDateString("en-IN")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>

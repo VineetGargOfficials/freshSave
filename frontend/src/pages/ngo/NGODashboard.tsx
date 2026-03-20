@@ -25,6 +25,8 @@ import {
   Heart,
   ExternalLink,
   User,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,6 +85,21 @@ interface ClaimedItem {
   claimedAt: string;
 }
 
+interface SubmittedReview {
+  _id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  restaurant?: {
+    name?: string;
+    organizationName?: string;
+    address?: {
+      city?: string;
+      state?: string;
+    };
+  };
+}
+
 export default function NGOHome() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -92,6 +109,7 @@ export default function NGOHome() {
   const [claimQuantities, setClaimQuantities] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [submittedReviews, setSubmittedReviews] = useState<SubmittedReview[]>([]);
   const [activeView, setActiveView] = useState<'available' | 'claimed'>('available');
   const [listingFilter, setListingFilter] = useState<'all' | 'partner' | 'community'>('all');
 
@@ -170,10 +188,24 @@ export default function NGOHome() {
     }
   };
 
+  const fetchSubmittedReviews = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/restaurants/my/reviews`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data?.success) {
+        setSubmittedReviews(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch submitted reviews:", error);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchListings();
       fetchClaims();
+      fetchSubmittedReviews();
     }
   }, [token]);
 
@@ -786,6 +818,60 @@ export default function NGOHome() {
             </div>
             <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-11">
               Manage Team
+            </Button>
+          </Card>
+
+          <Card className="glass-card p-6 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-background">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-500/15 flex items-center justify-center">
+                  <Star className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-bold">Restaurant Reviews</h4>
+                  <p className="text-xs text-muted-foreground">Your submitted ratings</p>
+                </div>
+              </div>
+              <Badge variant="outline">{submittedReviews.length}</Badge>
+            </div>
+
+            {submittedReviews.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-4 text-center">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">No restaurant reviews yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Submit reviews from your restaurant partner details.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {submittedReviews.slice(0, 3).map((review) => {
+                  const restaurantName = review.restaurant?.organizationName || review.restaurant?.name || "Restaurant";
+                  return (
+                    <div key={review._id} className="rounded-2xl border border-border/60 bg-background/70 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{restaurantName}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {review.comment?.trim() || "No written feedback shared."}
+                          </p>
+                        </div>
+                        <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 shrink-0">
+                          {review.rating}/5
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              className="w-full mt-4 rounded-xl font-semibold h-11"
+              onClick={() => navigate("/ngo/partners")}
+            >
+              Manage Reviews in Partners
             </Button>
           </Card>
         </div>

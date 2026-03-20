@@ -2,6 +2,7 @@ const RestaurantFoodListing = require('../models/Restaurants/RestaurantFoodListi
 const FoodItem = require('../models/IndividualUsers/FoodItem');
 const User = require('../models/User');
 const Claim = require('../models/Claim');
+const RestaurantReview = require('../models/RestaurantReview');
 const { recomputeUserBadges } = require('../services/badgeService');
 
 const ALLOWED_LISTING_TYPES = ['donation', 'discount'];
@@ -698,6 +699,98 @@ exports.getRestaurantClaims = async (req, res) => {
   } catch (error) {
     console.error('Get restaurant claims error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch claims' });
+  }
+};
+
+/**
+ * @desc    Submit or update a review for a restaurant
+ * @route   POST /api/restaurants/:restaurantId/reviews
+ * @access  Private (user, ngo)
+ */
+exports.submitRestaurantReview = async (req, res) => {
+  try {
+    if (!['user', 'ngo'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only users and NGOs can review restaurants'
+      });
+    }
+
+    const { restaurantId } = req.params;
+    const { rating, comment } = req.body;
+    const numericRating = Number(rating);
+
+    if (!Number.isFinite(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    const restaurant = await User.findOne({ _id: restaurantId, role: 'restaurant' });
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: 'Restaurant not found' });
+    }
+
+    const review = await RestaurantReview.findOneAndUpdate(
+      { restaurant: restaurantId, reviewer: req.user.id },
+      {
+        restaurant: restaurantId,
+        reviewer: req.user.id,
+        reviewerRole: req.user.role,
+        rating: numericRating,
+        comment: typeof comment === 'string' ? comment.trim() : ''
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      }
+    ).populate('reviewer', 'name organizationName email');
+
+    const summary = await RestaurantReview.aggregate([
+      { $match: { restaurant: restaurant._id } },
+      {
+        $group: {
+          _id: '$restaurant',
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Review saved successfully',
+      data: review,
+      summary: summary[0] || { averageRating: numericRating, totalReviews: 1 }
+    });
+  } catch (error) {
+    console.error('Submit restaurant review error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to save review' });
+  }
+};
+
+/**
+ * @desc    Get reviews submitted by the logged-in user or NGO
+ * @route   GET /api/restaurants/my/reviews
+ * @access  Private (user, ngo, admin)
+ */
+exports.getMySubmittedRestaurantReviews = async (req, res) => {
+  try {
+    const reviews = await RestaurantReview.find({ reviewer: req.user.id })
+      .populate('restaurant', 'name organizationName email address')
+      .sort({ updatedAt: -1, createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: reviews.length,
+      data: reviews
+    });
+  } catch (error) {
+    console.error('Get my restaurant reviews error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to load your reviews' });
   }
 };
 

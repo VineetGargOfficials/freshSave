@@ -11,6 +11,7 @@ import {
   Phone,
   ShieldCheck,
   Truck,
+  Star,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
@@ -160,6 +161,10 @@ export default function AdminDashboard() {
         <Button variant="outline" onClick={() => navigate("/admin/delivery-partnerships")}>
           <Truck className="h-4 w-4 mr-2" />
           Open Delivery Partnerships
+        </Button>
+        <Button variant="outline" onClick={() => navigate("/admin/restaurant-reviews")}>
+          <Star className="h-4 w-4 mr-2" />
+          Open Restaurant Reviews
         </Button>
       </div>
 

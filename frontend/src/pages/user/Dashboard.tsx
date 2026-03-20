@@ -1,21 +1,22 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  AlertTriangle, 
-  Trash2, 
-  Clock, 
-  Apple, 
-  RefreshCw, 
+import {
+  AlertTriangle,
+  Trash2,
+  Clock3,
+  Apple,
+  RefreshCw,
   Loader2,
-  TrendingDown,
   Leaf,
   Package,
-  Filter,
-  ChevronDown,
   CheckCircle2,
   Calendar,
   ShoppingCart,
-  BarChart3,
+  List,
+  LayoutGrid,
+  Utensils,
+  Box,
+  X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 interface FoodItem {
   _id: string;
@@ -35,139 +37,157 @@ interface FoodItem {
   expiryDate: string;
   status: string;
   addedVia?: string;
-  createdAt: string;
+}
+
+interface DiscountOffer {
+  _id: string;
+  name: string;
+  discountPercentage?: number;
+  discountedPrice?: number;
+  restaurant?: {
+    name?: string;
+    organizationName?: string;
+    address?: {
+      city?: string;
+    };
+  };
 }
 
 const statusConfig = {
-  fresh: { 
-    bg: "bg-green-500/10", 
-    text: "text-green-600", 
-    border: "border-green-500/20", 
+  fresh: {
     label: "Fresh",
     icon: CheckCircle2,
-    color: "text-green-500"
+    chip: "bg-emerald-500/10 text-emerald-700 border-emerald-300/40",
+    card: "border-emerald-500/15 bg-emerald-500/5",
+    dot: "bg-emerald-500",
   },
-  warning: { 
-    bg: "bg-yellow-500/10", 
-    text: "text-yellow-600", 
-    border: "border-yellow-500/20", 
+  warning: {
     label: "Expiring Soon",
-    icon: Clock,
-    color: "text-yellow-500"
+    icon: Clock3,
+    chip: "bg-amber-500/10 text-amber-700 border-amber-300/40",
+    card: "border-amber-500/15 bg-amber-500/5",
+    dot: "bg-amber-500",
   },
-  urgent: { 
-    bg: "bg-red-500/10", 
-    text: "text-red-600", 
-    border: "border-red-500/20", 
-    label: "Use Today!",
+  urgent: {
+    label: "Urgent",
     icon: AlertTriangle,
-    color: "text-red-500"
+    chip: "bg-rose-500/10 text-rose-700 border-rose-300/40",
+    card: "border-rose-500/15 bg-rose-500/5",
+    dot: "bg-rose-500",
   },
-  expired: { 
-    bg: "bg-gray-500/10", 
-    text: "text-gray-600", 
-    border: "border-gray-500/20", 
-    label: "Expired",
-    icon: Trash2,
-    color: "text-gray-500"
+  expired: {
+    label: "Overdue",
+    icon: AlertTriangle,
+    chip: "bg-rose-600/10 text-rose-800 border-rose-400/40",
+    card: "border-rose-600/20 bg-rose-500/7",
+    dot: "bg-rose-600",
   },
-  consumed: { 
-    bg: "bg-blue-500/10", 
-    text: "text-blue-600", 
-    border: "border-blue-500/20", 
-    label: "Consumed",
-    icon: CheckCircle2,
-    color: "text-blue-500"
-  }
 };
 
-const categoryEmoji: Record<string, string> = {
-  Fruits: "🍎", 
-  Vegetables: "🥬", 
-  Dairy: "🧀", 
-  Meat: "🥩",
-  Grains: "🌾", 
-  Beverages: "🥤", 
-  Snacks: "🍿", 
-  Condiments: "🧂",
-  Frozen: "🧊", 
-  Other: "📦",
-};
-
-// Calculate days until expiry
 function getDaysUntilExpiry(expiryDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const expiry = new Date(expiryDate);
   expiry.setHours(0, 0, 0, 0);
-  const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Group items by status
-function groupByStatus(items: FoodItem[]) {
-  return {
-    urgent: items.filter(i => i.status === "urgent" || i.status === "expired"),
-    warning: items.filter(i => i.status === "warning"),
-    fresh: items.filter(i => i.status === "fresh"),
-  };
+function getItemStatus(item: FoodItem) {
+  if (item.status === "expired") return "expired";
+  if (item.status === "urgent") return "urgent";
+  if (item.status === "warning") return "warning";
+  return "fresh";
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError(error)) {
+    return (error.response?.data as { message?: string } | undefined)?.message || fallback;
+  }
+  return fallback;
 }
 
 export default function Dashboard() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<FoodItem[]>([]);
+  const [offers, setOffers] = useState<DiscountOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [groupView, setGroupView] = useState(true);
+  const [showOfferNotification, setShowOfferNotification] = useState(true);
 
-  useEffect(() => {
-    fetchFoodItems();
-  }, []);
-
-  const fetchFoodItems = async () => {
+  const fetchFoodItems = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_URL}/food`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.data.success) {
         setItems(response.data.data || []);
       }
-    } catch (error: any) {
-      console.error('Fetch food items error:', error);
-      toast.error(error.response?.data?.message || 'Failed to fetch food items');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to fetch food items"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchFoodItems();
+  }, [fetchFoodItems]);
+
+  const fetchOfferNotifications = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/restaurants/listings`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          listingType: "discount",
+          limit: 20,
+        },
+      });
+
+      if (response.data?.success) {
+        const activeOffers = response.data.data || [];
+        setOffers(activeOffers);
+        setShowOfferNotification(activeOffers.length > 0);
+
+        if (activeOffers.length > 0) {
+          const bestDiscount = Math.max(...activeOffers.map((offer: DiscountOffer) => offer.discountPercentage || 0));
+          toast.info(`${activeOffers.length} offer${activeOffers.length !== 1 ? "s" : ""} available now`, {
+            description: bestDiscount > 0 ? `Up to ${bestDiscount}% off from restaurant partners.` : "New discounted restaurant items are available.",
+          });
+        }
+      }
+    } catch {
+      setOffers([]);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      fetchOfferNotifications();
+    }
+  }, [token, fetchOfferNotifications]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchFoodItems();
     setRefreshing(false);
-    toast.success('Refreshed!');
+    toast.success("Inventory refreshed");
   };
 
   const handleDelete = async (id: string) => {
     try {
       const response = await axios.delete(`${API_URL}/food/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.data.success) {
-        setItems(items.filter(item => item._id !== id));
-        toast.success('Item deleted');
+        setItems((prev) => prev.filter((item) => item._id !== id));
+        toast.success("Item removed");
       }
-    } catch (error: any) {
-      console.error('Delete error:', error);
-      toast.error(error.response?.data?.message || 'Failed to delete item');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to delete item"));
     }
   };
 
@@ -176,114 +196,121 @@ export default function Dashboard() {
       const response = await axios.put(
         `${API_URL}/food/${id}/consume`,
         {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
       if (response.data.success) {
-        setItems(items.filter(item => item._id !== id));
-        toast.success('Marked as consumed! 🎉');
+        setItems((prev) => prev.filter((item) => item._id !== id));
+        toast.success("Marked as consumed");
       }
-    } catch (error: any) {
-      console.error('Consume error:', error);
-      toast.error(error.response?.data?.message || 'Failed to mark as consumed');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to mark as consumed"));
     }
   };
 
-  // Filter items
-  const filteredItems = selectedFilter === "all" 
-    ? items 
-    : items.filter(item => item.status === selectedFilter);
+  const stats = useMemo(() => {
+    const fresh = items.filter((i) => i.status === "fresh").length;
+    const warning = items.filter((i) => i.status === "warning").length;
+    const urgent = items.filter((i) => i.status === "urgent" || i.status === "expired").length;
+    const wasteSaved = items.length > 0 ? Math.max(1, Math.min(99, Math.round((fresh / items.length) * 100))) : 0;
+    return { total: items.length, fresh, warning, urgent, wasteSaved };
+  }, [items]);
 
-  // Sort by expiry date
-  const sorted = [...filteredItems].sort(
-    (a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+  const filteredItems = useMemo(() => {
+    if (selectedFilter === "all") return items;
+    if (selectedFilter === "urgent") return items.filter((item) => item.status === "urgent" || item.status === "expired");
+    return items.filter((item) => item.status === selectedFilter);
+  }, [items, selectedFilter]);
+
+  const sortedItems = useMemo(
+    () => [...filteredItems].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()),
+    [filteredItems]
   );
 
-  const grouped = groupByStatus(filteredItems);
+  const groupedItems = useMemo(
+    () => ({
+      urgent: sortedItems.filter((i) => i.status === "urgent" || i.status === "expired"),
+      warning: sortedItems.filter((i) => i.status === "warning"),
+      fresh: sortedItems.filter((i) => i.status === "fresh"),
+    }),
+    [sortedItems]
+  );
 
-  // Calculate stats
-  const stats = {
-    total: items.length,
-    fresh: items.filter((i) => i.status === "fresh").length,
-    warning: items.filter((i) => i.status === "warning").length,
-    urgent: items.filter((i) => i.status === "urgent" || i.status === "expired").length,
-    wasteReduced: Math.floor(items.length * 0.3), // Mock calculation
-  };
+  const filters = [
+    { id: "all", label: "All Items", count: items.length, tone: "bg-slate-900 text-white border-slate-900" },
+    { id: "urgent", label: "Urgent", count: stats.urgent, tone: "bg-rose-600 text-white border-rose-700" },
+    { id: "warning", label: "Expiring Soon", count: stats.warning, tone: "bg-amber-500 text-amber-950 border-amber-600" },
+    { id: "fresh", label: "Fresh", count: stats.fresh, tone: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  ];
+
+  const statCards = [
+    { title: "Total Items", value: stats.total, icon: Package, chip: "bg-slate-900/8 text-slate-700 border-slate-300/50" },
+    { title: "Fresh", value: stats.fresh, icon: CheckCircle2, chip: "bg-emerald-500/10 text-emerald-700 border-emerald-300/40" },
+    { title: "Expiring", value: stats.warning, icon: Clock3, chip: "bg-amber-500/10 text-amber-700 border-amber-300/40" },
+    { title: "Urgent", value: stats.urgent, icon: AlertTriangle, chip: "bg-rose-500/10 text-rose-700 border-rose-300/40" },
+    { title: "Waste Saved", value: `${stats.wasteSaved}%`, icon: Leaf, chip: "bg-cyan-500/10 text-cyan-700 border-cyan-300/40" },
+  ];
+
+  const topOffers = offers.slice(0, 3);
+  const bestDiscount = offers.length > 0 ? Math.max(...offers.map((offer) => offer.discountPercentage || 0)) : 0;
 
   const ItemCard = ({ item }: { item: FoodItem }) => {
     const days = getDaysUntilExpiry(item.expiryDate);
-    const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.fresh;
+    const currentStatus = getItemStatus(item);
+    const config = statusConfig[currentStatus];
     const StatusIcon = config.icon;
+    const dayText = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Expires today" : `${days}d left`;
 
     return (
       <motion.div
         layout
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 20 }}
-        whileHover={{ scale: 1.01 }}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
       >
-        <Card className={cn("glass-card p-4 border hover:shadow-md transition-shadow", config.border)}>
-          <div className="flex items-center gap-4">
-            <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center text-2xl", config.bg)}>
-              {categoryEmoji[item.category] || "📦"}
+        <Card className={cn("rounded-2xl border p-4 shadow-sm", config.card)}>
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+              <Box className="h-6 w-6" />
             </div>
 
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="font-semibold text-foreground truncate">
-                  {item.name}
-                </p>
-                {item.addedVia === 'voice' && (
-                  <Badge variant="outline" className="text-xs border-primary/30 bg-primary/5">
-                    🎤 Voice
+                <p className="truncate text-xl font-semibold text-slate-900">{item.name}</p>
+                {item.addedVia === "voice" && (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                    Voice
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Package className="h-3 w-3" />
-                  {item.quantity}
-                </span>
-                <span>•</span>
-                <span>{item.category}</span>
+              <p className="mt-0.5 text-sm text-slate-500">{item.quantity} • {item.category}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={config.chip}>
+                  <StatusIcon className="mr-1 h-3 w-3" />
+                  {config.label}
+                </Badge>
+                <Badge variant="outline" className="border-slate-300/60 bg-white text-slate-700">
+                  <Calendar className="mr-1 h-3 w-3" />
+                  {dayText}
+                </Badge>
               </div>
             </div>
 
-            <div className="text-right shrink-0">
-              <Badge variant="outline" className={cn("mb-1", config.bg, config.text, config.border)}>
-                <StatusIcon className="h-3 w-3 mr-1" />
-                {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Today" : `${days}d left`}
-              </Badge>
-              <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                <Calendar className="h-3 w-3" />
-                {new Date(item.expiryDate).toLocaleDateString()}
-              </p>
-            </div>
-
-            <div className="flex gap-1 shrink-0">
+            <div className="flex shrink-0 gap-2">
               <Button
-                variant="ghost"
-                size="icon"
                 onClick={() => handleConsume(item._id)}
-                className="text-green-600 hover:bg-green-500/10"
-                title="Mark as consumed"
+                className="rounded-xl bg-emerald-600 px-4 text-white hover:bg-emerald-700"
               >
-                <CheckCircle2 className="h-4 w-4" />
+                <Utensils className="mr-2 h-4 w-4" />
+                Consume
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
+                variant="outline"
                 onClick={() => handleDelete(item._id)}
-                className="text-red-600 hover:bg-red-500/10"
-                title="Delete"
+                className="rounded-xl border-rose-300/80 text-rose-700 hover:bg-rose-50"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="mr-2 h-4 w-4" />
+                Discard
               </Button>
             </div>
           </div>
@@ -294,198 +321,204 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[420px] items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground">Loading your food items...</p>
+          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-emerald-600" />
+          <p className="text-sm text-slate-500">Loading your inventory...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
-              <Apple className="h-8 w-8 text-primary" />
-              Food Dashboard
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
+              <Apple className="h-7 w-7 text-emerald-700" />
+              Inventory Dashboard
             </h1>
-            <p className="text-muted-foreground mt-1">Track your food, reduce waste, save money 💰</p>
+            <p className="mt-1 text-sm text-slate-500">Track inventory, reduce waste, and manage daily usage.</p>
           </div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setGroupView(!groupView)}
-              title={groupView ? "List view" : "Group view"}
+              variant="secondary"
+              onClick={() => setGroupView((v) => !v)}
+              className="rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             >
-              <BarChart3 className={cn("h-4 w-4", groupView && "text-primary")} />
+              {groupView ? <List className="mr-2 h-4 w-4" /> : <LayoutGrid className="mr-2 h-4 w-4" />}
+              {groupView ? "List View" : "Group View"}
             </Button>
             <Button
               onClick={handleRefresh}
               disabled={refreshing}
-              variant="outline"
-              size="icon"
+              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
             >
-              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+              <RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} />
+              Refresh
             </Button>
           </div>
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        {[
-          { label: "Total Items", value: stats.total, icon: Package, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Fresh", value: stats.fresh, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
-          { label: "Expiring", value: stats.warning, icon: Clock, color: "text-yellow-500", bg: "bg-yellow-500/10" },
-          { label: "Urgent", value: stats.urgent, icon: AlertTriangle, color: "text-red-500", bg: "bg-red-500/10" },
-          { label: "Waste Saved", value: `${stats.wasteReduced}%`, icon: Leaf, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-        ].map((stat, i) => (
-          <motion.div 
-            key={stat.label} 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ delay: i * 0.08 }}
-          >
-            <Card className="glass-card p-4 hover:shadow-md transition-shadow">
-              <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center mb-2", stat.bg)}>
-                <stat.icon className={cn("h-5 w-5", stat.color)} />
-              </div>
-              <p className={cn("text-2xl font-bold", stat.color)}>{stat.value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {statCards.map((card, index) => (
+          <motion.div key={card.title} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+            <Card className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Badge variant="outline" className={cn("mb-3", card.chip)}>
+                <card.icon className="mr-1 h-3.5 w-3.5" />
+                {card.title}
+              </Badge>
+              <p className="text-3xl font-semibold text-slate-900">{card.value}</p>
             </Card>
           </motion.div>
         ))}
       </div>
 
-      {/* Filter Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex gap-2 overflow-x-auto pb-2"
-      >
-        {[
-          { id: "all", label: "All Items", count: items.length },
-          { id: "urgent", label: "Urgent", count: stats.urgent },
-          { id: "warning", label: "Expiring Soon", count: stats.warning },
-          { id: "fresh", label: "Fresh", count: stats.fresh },
-        ].map((filter) => (
-          <Button
-            key={filter.id}
-            variant={selectedFilter === filter.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedFilter(filter.id)}
-            className={cn(
-              "shrink-0",
-              selectedFilter === filter.id && "bg-primary hover:bg-primary/90"
-            )}
-          >
-            {filter.label}
-            <Badge variant="secondary" className="ml-2">
-              {filter.count}
-            </Badge>
-          </Button>
-        ))}
+      {offers.length > 0 && showOfferNotification && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.06 }}
+        >
+          <Card className="rounded-3xl border border-amber-300/50 bg-gradient-to-r from-amber-50 via-white to-orange-50 p-5 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">
+                      Special Offers
+                    </Badge>
+                    <Badge variant="outline">
+                      {offers.length} active
+                    </Badge>
+                    {bestDiscount > 0 && (
+                      <Badge variant="outline" className="border-emerald-300/50 bg-emerald-50 text-emerald-700">
+                        Up to {bestDiscount}% off
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-white/80 hover:text-slate-900"
+                    onClick={() => setShowOfferNotification(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Discount offers available for you</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    New restaurant discounts are visible now and this notification appears whenever you log in.
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {topOffers.map((offer) => {
+                    const restaurantName = offer.restaurant?.organizationName || offer.restaurant?.name || "Restaurant";
+                    const city = offer.restaurant?.address?.city;
+                    return (
+                      <div key={offer._id} className="rounded-2xl border border-amber-200/60 bg-white/80 p-3">
+                        <p className="font-medium text-slate-900 truncate">{offer.name}</p>
+                        <p className="text-xs text-slate-500 mt-1 truncate">{restaurantName}{city ? `, ${city}` : ""}</p>
+                        <p className="text-sm font-semibold text-amber-700 mt-2">
+                          {offer.discountPercentage ? `${offer.discountPercentage}% off` : "Discount available"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button
+                onClick={() => navigate("/offers")}
+                className="rounded-xl bg-amber-500 text-amber-950 hover:bg-amber-400"
+              >
+                View Offers & Discounts
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="flex gap-2 overflow-x-auto pb-1">
+        {filters.map((filter) => {
+          const active = selectedFilter === filter.id;
+          return (
+            <button
+              key={filter.id}
+              onClick={() => setSelectedFilter(filter.id)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all",
+                active ? filter.tone : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+              )}
+            >
+              <span>{filter.label}</span>
+              <span className={cn("rounded-full px-2 py-0.5 text-xs", active ? "bg-white/20" : "bg-slate-100")}>{filter.count}</span>
+            </button>
+          );
+        })}
       </motion.div>
 
-      {/* Food Items */}
-      {sorted.length === 0 ? (
-        <Card className="glass-card p-12 text-center">
-          <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <ShoppingCart className="h-10 w-10 text-muted-foreground" />
+      {sortedItems.length === 0 ? (
+        <Card className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
+            <ShoppingCart className="h-10 w-10 text-slate-500" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No food items yet</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Start tracking your food inventory by adding items through voice, manual entry, or OCR scanning.
+          <h3 className="text-lg font-semibold text-slate-900">No inventory items yet</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+            Add your first item manually or use scan to start managing your inventory.
           </p>
         </Card>
       ) : groupView ? (
-        /* Grouped View */
         <div className="space-y-6">
-          {grouped.urgent.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-                <h2 className="text-lg font-semibold text-foreground">
-                  Urgent - Use Today!
-                </h2>
-                <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">
-                  {grouped.urgent.length}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <AnimatePresence>
-                  {grouped.urgent.map((item) => (
-                    <ItemCard key={item._id} item={item} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
+          {(["urgent", "warning", "fresh"] as const).map((groupKey, idx) => {
+            const list = groupedItems[groupKey];
+            if (list.length === 0) return null;
 
-          {grouped.warning.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="h-5 w-5 text-yellow-500" />
-                <h2 className="text-lg font-semibold text-foreground">
-                  Expiring Soon
-                </h2>
-                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                  {grouped.warning.length}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <AnimatePresence>
-                  {grouped.warning.map((item) => (
-                    <ItemCard key={item._id} item={item} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
+            const labelMap = {
+              urgent: "Urgent Items",
+              warning: "Expiring Soon",
+              fresh: "Fresh Items",
+            };
 
-          {grouped.fresh.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                <h2 className="text-lg font-semibold text-foreground">
-                  Fresh Items
-                </h2>
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                  {grouped.fresh.length}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <AnimatePresence>
-                  {grouped.fresh.map((item) => (
-                    <ItemCard key={item._id} item={item} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
+            return (
+              <motion.section
+                key={groupKey}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.06 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={cn("h-2.5 w-2.5 rounded-full", statusConfig[groupKey].dot)} />
+                  <h2 className="text-lg font-semibold text-slate-900">{labelMap[groupKey]}</h2>
+                  <Badge variant="outline" className={statusConfig[groupKey].chip}>
+                    {list.length}
+                  </Badge>
+                </div>
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {list.map((item) => (
+                      <ItemCard key={item._id} item={item} />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </motion.section>
+            );
+          })}
         </div>
       ) : (
-        /* List View */
-        <div className="space-y-2">
+        <div className="space-y-3">
           <AnimatePresence>
-            {sorted.map((item) => (
+            {sortedItems.map((item) => (
               <ItemCard key={item._id} item={item} />
             ))}
           </AnimatePresence>

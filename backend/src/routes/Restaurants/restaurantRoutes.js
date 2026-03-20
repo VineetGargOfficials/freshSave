@@ -14,7 +14,9 @@ const {
   toggleAvailability,
   getMyStats,
   getConnectedListings,
-  getRestaurantClaims
+  getRestaurantClaims,
+  submitRestaurantReview,
+  getMySubmittedRestaurantReviews
 } = require('../../controllers/restaurantController');
 
 const { protect, authorize } = require('../../middleware/auth');
@@ -84,7 +86,9 @@ router.post('/listings/:id/add-to-fridge', addListingToFridge);
  */
 router.get('/my/stats', authorize('restaurant', 'admin'), getMyStats);
 router.get('/my/claims', authorize('restaurant', 'admin'), getRestaurantClaims);
+router.get('/my/reviews', authorize('user', 'ngo', 'admin'), getMySubmittedRestaurantReviews);
 router.get('/connected/listings', authorize('ngo', 'admin'), getConnectedListings);
+router.post('/:restaurantId/reviews', authorize('user', 'ngo', 'admin'), submitRestaurantReview);
 
 // ─── Dynamic param routes last ────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const RestaurantReview = require('../models/RestaurantReview');
 
 const allowedVerificationStatuses = new Set(['pending', 'under_review', 'verified', 'rejected']);
 
@@ -100,5 +101,50 @@ exports.updateDeliveryAccess = async (req, res) => {
   } catch (error) {
     console.error('Update delivery access error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to update delivery access' });
+  }
+};
+
+exports.getRestaurantReviews = async (req, res) => {
+  try {
+    const reviews = await RestaurantReview.find()
+      .populate('restaurant', 'name organizationName email address')
+      .populate('reviewer', 'name organizationName email role')
+      .sort({ createdAt: -1 });
+
+    const summary = await RestaurantReview.aggregate([
+      {
+        $group: {
+          _id: '$restaurant',
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const summaryMap = new Map(summary.map((item) => [String(item._id), item]));
+    const formatted = reviews.map((review) => {
+      const restaurantId = String(review.restaurant?._id || '');
+      const stats = summaryMap.get(restaurantId);
+      return {
+        _id: review._id,
+        rating: review.rating,
+        comment: review.comment,
+        reviewerRole: review.reviewerRole,
+        createdAt: review.createdAt,
+        restaurant: review.restaurant,
+        reviewer: review.reviewer,
+        restaurantAverageRating: stats?.averageRating || review.rating,
+        restaurantTotalReviews: stats?.totalReviews || 1
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: formatted.length,
+      data: formatted
+    });
+  } catch (error) {
+    console.error('Get restaurant reviews error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to load restaurant reviews' });
   }
 };

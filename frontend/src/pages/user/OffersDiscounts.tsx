@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -7,6 +7,7 @@ import {
   Loader2,
   MapPin,
   Search,
+  Star,
   Store,
   Tag,
   TicketPercent,
@@ -16,6 +17,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -33,6 +43,7 @@ interface OfferListing {
   quantityAvailable: number;
   unit: string;
   restaurant?: {
+    _id?: string;
     name?: string;
     organizationName?: string;
     address?: {
@@ -54,17 +65,18 @@ export default function OffersDiscounts() {
   const [cityFilter, setCityFilter] = useState(user?.address?.city || "");
   const [minDiscount, setMinDiscount] = useState("0");
   const [nearbyOnly, setNearbyOnly] = useState(Boolean(user?.address?.city));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<{ id: string; name: string } | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     setCityFilter(user?.address?.city || "");
     setNearbyOnly(Boolean(user?.address?.city));
   }, [user?.address?.city]);
 
-  useEffect(() => {
-    fetchOffers();
-  }, [token]);
-
-  const fetchOffers = async () => {
+  const fetchOffers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/restaurants/listings`, {
@@ -78,13 +90,18 @@ export default function OffersDiscounts() {
       if (response.data?.success) {
         setOffers(response.data.data || []);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to fetch offers", error);
-      toast.error(error.response?.data?.message || "Failed to load offers");
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      toast.error(message || "Failed to load offers");
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchOffers();
+  }, [fetchOffers]);
 
   const filteredOffers = useMemo(() => {
     const minDiscountValue = Number(minDiscount) || 0;
@@ -119,6 +136,38 @@ export default function OffersDiscounts() {
       toast.success(`Coupon copied: ${couponCode}`);
     } catch {
       toast.error("Failed to copy coupon");
+    }
+  };
+
+  const openReviewDialog = (restaurantId?: string, restaurantName?: string) => {
+    if (!restaurantId) {
+      toast.error("Restaurant information is missing for this offer");
+      return;
+    }
+
+    setSelectedRestaurant({ id: restaurantId, name: restaurantName || "Restaurant" });
+    setReviewRating(5);
+    setReviewComment("");
+    setReviewOpen(true);
+  };
+
+  const submitReview = async () => {
+    if (!selectedRestaurant) return;
+
+    try {
+      setSubmittingReview(true);
+      await axios.post(
+        `${API_URL}/restaurants/${selectedRestaurant.id}/reviews`,
+        { rating: reviewRating, comment: reviewComment },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Review submitted successfully");
+      setReviewOpen(false);
+    } catch (error: unknown) {
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      toast.error(message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -272,6 +321,15 @@ export default function OffersDiscounts() {
                         </Button>
                       </div>
                     </div>
+
+                    <Button
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => openReviewDialog(offer.restaurant?._id, restaurantName)}
+                    >
+                      <Star className="h-4 w-4 mr-2" />
+                      Rate Restaurant
+                    </Button>
                   </Card>
                 </motion.div>
               );
@@ -279,6 +337,53 @@ export default function OffersDiscounts() {
           </AnimatePresence>
         </div>
       )}
+
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rate {selectedRestaurant?.name || "Restaurant"}</DialogTitle>
+            <DialogDescription>
+              Your review will be shown to the admin for restaurant quality monitoring.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setReviewRating(value)}
+                  className="rounded-lg p-2 hover:bg-muted"
+                >
+                  <Star
+                    className={`h-6 w-6 ${
+                      value <= reviewRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+
+            <Textarea
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              rows={4}
+              placeholder="Share your experience with this restaurant"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitReview} disabled={submittingReview}>
+              {submittingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Star className="h-4 w-4 mr-2" />}
+              Submit Review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

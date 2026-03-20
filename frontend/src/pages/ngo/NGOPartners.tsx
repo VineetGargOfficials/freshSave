@@ -38,6 +38,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
@@ -136,6 +137,9 @@ export default function NGOPartners() {
   const [restaurantListings, setRestaurantListings] = useState<FoodListing[]>([]);
   const [myClaims, setMyClaims] = useState<any[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     fetchConnections();
@@ -172,6 +176,26 @@ export default function NGOPartners() {
     }
   };
 
+  const submitRestaurantReview = async () => {
+    if (!selectedRestaurant?._id) return;
+
+    try {
+      setSubmittingReview(true);
+      await axios.post(
+        `${API_URL}/restaurants/${selectedRestaurant._id}/reviews`,
+        { rating: reviewRating, comment: reviewComment },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Review submitted successfully");
+      setReviewComment("");
+      setReviewRating(5);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const handleUpdateStatus = async (id: string, newStatus: "accepted" | "rejected") => {
     setUpdatingStatus(id);
     try {
@@ -197,6 +221,8 @@ export default function NGOPartners() {
   const openDetailsModal = (connection: Connection) => {
     setSelectedRestaurant(connection.requester);
     setSelectedConnection(connection);
+    setReviewRating(5);
+    setReviewComment("");
     setShowDetailsModal(true);
     if (connection.status === "accepted") {
       fetchRestaurantListings(connection.requester._id);
@@ -1001,6 +1027,51 @@ export default function NGOPartners() {
                         <p className="text-xs text-muted-foreground italic">You haven't collected any items from this partner yet.</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {selectedConnection.status === "accepted" && selectedConnection.requesterRole === 'restaurant' && (
+                  <div className="pt-4 border-t border-border space-y-4">
+                    <div>
+                      <h4 className="font-bold text-lg flex items-center gap-2 mb-2">
+                        <Star className="h-5 w-5 text-amber-500" />
+                        Rate This Restaurant
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        Share your experience. This feedback will be visible to admin.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setReviewRating(value)}
+                          className="rounded-lg p-2 hover:bg-muted"
+                        >
+                          <Star
+                            className={`h-6 w-6 ${
+                              value <= reviewRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+
+                    <Textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      rows={4}
+                      placeholder="Tell admin how this restaurant handled food quality, coordination, and pickup support"
+                    />
+
+                    <div className="flex justify-end">
+                      <Button onClick={submitRestaurantReview} disabled={submittingReview}>
+                        {submittingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Star className="h-4 w-4 mr-2" />}
+                        Submit Review
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
