@@ -2,6 +2,10 @@ const User = require('../models/User');
 const crypto = require('crypto');
 const emailService = require('../services/emailService');
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@freshsave.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'FreshSaveAdmin@123';
+const ADMIN_NAME = process.env.ADMIN_NAME || 'FreshSave Admin';
+
 // ─── Helper: build full user payload for token responses ─────────────────────
 const buildUserPayload = (user) => ({
   id: user._id,
@@ -45,6 +49,8 @@ const buildUserPayload = (user) => ({
   // Verification
   isVerified: user.isVerified,
   verificationStatus: user.verificationStatus,
+  deliveryEnabled: user.deliveryEnabled,
+  deliveryEnabledAt: user.deliveryEnabledAt,
   createdAt: user.createdAt,
   badges: user.badges || []
 });
@@ -94,6 +100,13 @@ exports.register = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please provide name, email and password'
+      });
+    }
+
+    if (role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin accounts can only sign in with the configured admin credentials'
       });
     }
 
@@ -240,6 +253,47 @@ exports.login = async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
+    }
+
+    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
+      }
+
+      let adminUser = await User.findOne({ email: ADMIN_EMAIL });
+
+      if (adminUser && adminUser.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Configured admin email is already used by a non-admin account'
+        });
+      }
+
+      if (!adminUser) {
+        adminUser = await User.create({
+          name: ADMIN_NAME,
+          email: ADMIN_EMAIL,
+          password: ADMIN_PASSWORD,
+          role: 'admin',
+          emailVerified: true,
+          isVerified: true,
+          verificationStatus: 'verified',
+          deliveryEnabled: true,
+          deliveryEnabledAt: new Date()
+        });
+      }
+
+      if (!adminUser.emailVerified || !adminUser.isVerified || adminUser.verificationStatus !== 'verified') {
+        adminUser.emailVerified = true;
+        adminUser.isVerified = true;
+        adminUser.verificationStatus = 'verified';
+        adminUser.deliveryEnabled = true;
+        adminUser.deliveryEnabledAt = adminUser.deliveryEnabledAt || new Date();
+        await adminUser.save();
+      }
+
+      console.log(`✅ Admin logged in: ${adminUser.email}`);
+      return sendTokenResponse(adminUser, 200, res, 'Admin login successful!');
     }
 
     const user = await User.findOne({ email }).select('+password');

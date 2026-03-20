@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import NGOLayout from "@/components/layout/NGOLayout";
 import RestaurantLayout from "@/components/layout/RestaurantLayout";
+import AdminLayout from "@/components/layout/AdminLayout";
 
 // Auth pages
 import Login from "@/pages/auth/Login";
@@ -22,6 +23,8 @@ import RecipeSuggestions from "@/pages/user/RecipeSuggestions";
 import Donations from "@/pages/user/Donations";
 import OffersDiscounts from "@/pages/user/OffersDiscounts";
 import UserProfile from "@/pages/user/UserProfile";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminDeliveryPartnerships from "@/pages/admin/AdminDeliveryPartnerships";
 
 // NGO pages
 import NGODashboard from "@/pages/ngo/NGODashboard";
@@ -67,6 +70,8 @@ function RoleBasedRedirect() {
       return <Navigate to="/ngo" replace />;
     case 'restaurant':
       return <Navigate to="/restaurant" replace />;
+    case 'admin':
+      return <Navigate to="/admin" replace />;
     case 'user':
     default:
       return <Navigate to="/dashboard" replace />;
@@ -92,6 +97,10 @@ function UserProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (user.role === 'restaurant') {
     return <Navigate to="/restaurant" replace />;
+  }
+
+  if (user.role === 'admin') {
+    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;
@@ -135,6 +144,24 @@ function RestaurantProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, token } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 // Auth route (redirect if already logged in)
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, token } = useAuth();
@@ -150,6 +177,8 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
         return <Navigate to="/ngo" replace />;
       case 'restaurant':
         return <Navigate to="/restaurant" replace />;
+      case 'admin':
+        return <Navigate to="/admin" replace />;
       default:
         return <Navigate to="/dashboard" replace />;
     }
@@ -276,6 +305,11 @@ function AppRoutes() {
         <Route path="history" element={<DonationHistory />} />
         <Route path="analytics" element={<RestaurantAnalytics />} />
         <Route path="profile" element={<RestaurantProfile />} />
+      </Route>
+
+      <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="delivery-partnerships" element={<AdminDeliveryPartnerships />} />
       </Route>
 
       {/* ==================== CATCH ALL ==================== */}

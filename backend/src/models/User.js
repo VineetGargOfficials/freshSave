@@ -156,6 +156,12 @@ const userSchema = new mongoose.Schema({
     enum: ['pending', 'under_review', 'verified', 'rejected'],
     default: 'pending'
   },
+  deliveryEnabled: { type: Boolean, default: false },
+  deliveryEnabledAt: Date,
+  deliveryEnabledBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
 
   // ── User preferences ──────────────────────────────────────────────────────
   preferences: {

@@ -217,6 +217,13 @@ exports.claimDonation = async (req, res) => {
     const { quantity: claimQuantity, fulfillmentMethod = 'pickup' } = req.body;
     const claimQtyNum = parseInt(claimQuantity) || 1;
 
+    if (fulfillmentMethod === 'delivery' && !req.user.deliveryEnabled) {
+      return res.status(403).json({
+        success: false,
+        message: 'Delivery access is not enabled for this NGO by admin yet'
+      });
+    }
+
     // Check if enough quantity is available (if using numeric tracking)
     if (donation.quantityAvailable !== undefined && donation.quantityAvailable < claimQtyNum) {
       return res.status(400).json({

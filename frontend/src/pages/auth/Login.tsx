@@ -63,6 +63,9 @@ export default function Login() {
           </motion.div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Welcome Back</h1>
           <p className="text-muted-foreground">Sign in to your FreshSave account</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Admin can sign in with the configured fixed admin email and password.
+          </p>
         </div>
 
         <Card className="glass-card p-8">

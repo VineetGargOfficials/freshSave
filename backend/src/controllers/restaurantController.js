@@ -372,6 +372,23 @@ exports.addListingToFridge = async (req, res) => {
 
     // Create a FoodItem in the user's fridge from the listing details
     const { quantity, storageLocation = 'fridge', notes, fulfillmentMethod = 'pickup', deliveryAddress } = req.body;
+    const restaurantOwner = await User.findById(listing.restaurant?._id || listing.restaurant);
+
+    if (fulfillmentMethod === 'delivery') {
+      if (!restaurantOwner?.deliveryEnabled) {
+        return res.status(403).json({
+          success: false,
+          message: 'Delivery is not enabled for this restaurant by admin yet'
+        });
+      }
+
+      if (req.user.role === 'ngo' && !req.user.deliveryEnabled) {
+        return res.status(403).json({
+          success: false,
+          message: 'Delivery access is not enabled for this NGO by admin yet'
+        });
+      }
+    }
 
     // Default expiry: listing's expiry date or 3 days from now
     const expiryDate = listing.expiryDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);

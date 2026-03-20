@@ -14,6 +14,7 @@ const restaurantRoutes = require('./routes/Restaurants/restaurantRoutes');
 const geoRoutes = require('./routes/geoRoutes');
 const ngoRoutes = require('./routes/ngoRoutes');
 const connectionRoutes = require('./routes/connectionRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -93,6 +94,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/ngos', ngoRoutes);
 app.use('/api/connections', connectionRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Optional: Test routes (only if file exists)
 try {

@@ -71,6 +71,8 @@ export interface User {
   // Verification
   isVerified?: boolean;
   verificationStatus?: 'pending' | 'under_review' | 'verified' | 'rejected';
+  deliveryEnabled?: boolean;
+  deliveryEnabledAt?: string;
   createdAt?: string;
   badges?: {
     badgeId: string;
