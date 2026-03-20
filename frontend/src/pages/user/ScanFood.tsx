@@ -94,7 +94,7 @@ export default function ScanFood() {
 
   const handleScan = async () => {
     if (!file) {
-      toast.error("Choose a fridge image first");
+      toast.error("Choose an inventory/store image first");
       return;
     }
 
@@ -113,7 +113,7 @@ export default function ScanFood() {
       const data = response.data.data;
       setScanItems(data.items || []);
       setRawText(data.rawText || "");
-      toast.success(`Detected ${data.totalDetected} item(s) from your fridge`);
+      toast.success(`Detected ${data.totalDetected} item(s) from your inventory/store image`);
       fetchScanHistory();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Scan failed");
@@ -184,9 +184,9 @@ export default function ScanFood() {
             <Camera className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Smart Fridge Scan</h1>
+            <h1 className="text-3xl font-bold text-foreground">Smart Inventory/Store Recognition</h1>
             <p className="text-muted-foreground mt-1">
-              Upload a fridge photo, detect food items, and review the saved inventory.
+              Upload an inventory/store image, detect food items, and review saved inventory.
             </p>
           </div>
         </div>
@@ -222,18 +222,18 @@ export default function ScanFood() {
               className="w-full rounded-2xl border-2 border-dashed border-border bg-muted/20 px-6 py-16 text-center transition-colors hover:border-primary/40 hover:bg-primary/5"
             >
               <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
-              <p className="font-medium text-foreground">Choose a fridge photo</p>
+              <p className="font-medium text-foreground">Choose an inventory/store photo</p>
               <p className="text-sm text-muted-foreground mt-1">JPG, PNG, WEBP up to 5MB</p>
             </button>
           ) : (
             <div className="space-y-4">
               <div className="relative overflow-hidden rounded-2xl border bg-muted/20">
-                <img src={previewUrl} alt="Fridge preview" className="h-[320px] w-full object-cover" />
+                <img src={previewUrl} alt="Inventory preview" className="h-[320px] w-full object-cover" />
                 {isScanning && (
                   <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center">
                     <div className="text-center">
                       <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-3" />
-                      <p className="text-sm text-foreground">Analyzing fridge image...</p>
+                      <p className="text-sm text-foreground">Analyzing inventory/store image...</p>
                     </div>
                   </div>
                 )}
@@ -285,7 +285,7 @@ export default function ScanFood() {
             </div>
           ) : scanHistory.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              Your fridge scans will show up here after the first upload.
+              Your inventory/store scans will show up here after the first upload.
             </div>
           ) : (
             <div className="space-y-3">

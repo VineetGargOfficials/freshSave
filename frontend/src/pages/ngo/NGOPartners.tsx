@@ -280,7 +280,7 @@ export default function NGOPartners() {
               Partners & Connections
             </h1>
             <p className="text-muted-foreground mt-1">
-              Manage partnership requests from restaurants and individuals
+              Manage partnership requests from restaurants and users
             </p>
           </div>
         </div>

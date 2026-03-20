@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROLE_OPTIONS = [
-  { value: "user", label: "Individual User", icon: "👤", desc: "Track your food, reduce waste" },
+  { value: "user", label: "User", icon: "👤", desc: "For personal use or store owners" },
   { value: "restaurant", label: "Restaurant / Caterer", icon: "🍽️", desc: "List surplus food for donation" },
   { value: "ngo", label: "NGO / Organization", icon: "🤝", desc: "Receive surplus food donations" },
 ];
@@ -362,7 +362,10 @@ export default function Register() {
                     <div className="grid sm:grid-cols-3 gap-3">
                       {ROLE_OPTIONS.map(r => (
                         <button key={r.value} type="button"
-                          onClick={() => { setForm(p => ({ ...p, role: r.value })); setStep(1); }}
+                          onClick={() => {
+                            setForm(p => ({ ...p, role: r.value }));
+                            setStep(1);
+                          }}
                           className={`p-3 rounded-xl border text-left transition-all ${
                             form.role === r.value
                               ? "border-orange-500 bg-orange-500/10"

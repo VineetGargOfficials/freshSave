@@ -79,7 +79,7 @@ export default function Layout() {
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      Individual User
+                      User
                     </p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:block" />

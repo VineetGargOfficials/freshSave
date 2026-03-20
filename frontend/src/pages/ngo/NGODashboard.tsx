@@ -146,7 +146,7 @@ export default function NGOHome() {
           quantity: d.quantity,
           status: d.status,
           expiryDate: d.availableUntil,
-          partnerName: d.donor?.organizationName || d.donor?.name || 'Individual',
+          partnerName: d.donor?.organizationName || d.donor?.name || 'User',
           partnerType: 'individual' as const,
           claimedAt: d.claimedAt || d.createdAt,
         })),

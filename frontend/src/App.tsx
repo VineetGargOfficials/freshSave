@@ -78,7 +78,7 @@ function RoleBasedRedirect() {
   }
 }
 
-// Protected route for individual users only
+// Protected route for user role only
 function UserProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, token } = useAuth();
 
@@ -212,7 +212,7 @@ function AppRoutes() {
       />
       <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
-      {/* ==================== INDIVIDUAL USER ROUTES ==================== */}
+      {/* ==================== USER ROUTES ==================== */}
       <Route
         path="/dashboard"
         element={

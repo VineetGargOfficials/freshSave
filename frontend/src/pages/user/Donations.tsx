@@ -639,7 +639,7 @@ export default function Donations() {
                   <Input
                     value={form.restaurantName}
                     onChange={(e) => setForm({ ...form, restaurantName: e.target.value })}
-                    placeholder="Individual or organization name"
+                    placeholder="User or organization name"
                     className="pl-10 h-11 bg-muted/30 border-border/50 rounded-xl"
                   />
                 </div>

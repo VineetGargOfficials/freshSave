@@ -1158,6 +1158,75 @@ export default function RestaurantProfile() {
                 </div>
               </div>
             </Card>
+
+            {/* Previous Documents & Certificates */}
+            <Card className="glass-card p-6">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
+                <FileText className="h-5 w-5 text-primary" />
+                Previous Documents & Certificates
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm text-muted-foreground">FSSAI License</p>
+                    <p className="font-medium text-foreground">
+                      {form.fssaiLicense || "Not provided"}
+                    </p>
+                  </div>
+                  {form.fssaiLicense ? (
+                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      On Record
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Missing
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Restaurant Verification</p>
+                    <p className="font-medium text-foreground capitalize">
+                      {user?.verificationStatus || "pending"}
+                    </p>
+                  </div>
+                  {user?.isVerified ? (
+                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/30">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Pending
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Delivery Partnership Access</p>
+                    <p className="font-medium text-foreground">
+                      {user?.deliveryEnabled ? "Enabled by Admin" : "Not Enabled"}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      user?.deliveryEnabled
+                        ? "text-sky-600 border-sky-500/30 bg-sky-500/10"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    <Truck className="h-3 w-3 mr-1" />
+                    {user?.deliveryEnabled ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </div>
+            </Card>
           </TabsContent>
         </Tabs>
       </motion.div>
